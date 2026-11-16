@@ -96,3 +96,7 @@ The script performs no downloads and starts only a loopback synthetic provider
 fixture. It runs the same auth source inside workerd without Node compatibility,
 records source hashes and closes its own runtime. This proves local runtime
 behavior, not a hosted Sites installation or live ConnectWunder acceptance.
+
+---
+
+[Imprint](https://app.connectwunder.com/legal/en/imprint) · [Privacy](https://app.connectwunder.com/legal/en/privacy)
