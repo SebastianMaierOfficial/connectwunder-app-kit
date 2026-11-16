@@ -36,10 +36,27 @@ The helper's default routes are `/auth/connectwunder/launch` and
 and registration together. ConnectWunder must launch the first route, never the
 ordinary app home, so that a stale session for another user cannot be reused.
 
-The public API reference starts at https://app.connectwunder.com/docs/api . Use
-the versioned workspace-app contract supplied by the target environment. If its
-registration or scoped-board capability is unavailable, report that precise gap;
-do not substitute the broad MCP or Connected Apps worker scopes.
+## Discover the target's workspace-app contract
+
+After the registrar returns the managed app's `oauth.resource`, use that exact
+resource URL (path `/api/workspace-apps/v1`) for:
+
+- `GET <resource>/contract`: official Workspace Apps v1 discovery, including the
+  target issuer, resource, scopes, endpoints and `endpoints.openapi` URL.
+- `GET <resource>/openapi`: the full official OpenAPI schemas.
+
+Both endpoints require no authentication and contain static contract/configuration
+only, with no registered app, user or workspace data. Confirm the discovery
+resource and issuer match registration before using the advertised endpoints.
+Read [data](data.md) for the supported response versions and live-target check.
+
+The general API reference at https://app.connectwunder.com/docs/api and its
+`/openapi.yaml` are separate from this workspace-app specification. Absence of
+workspace-app routes there does not establish incompatibility. If the confirmed
+registrar resource's `/contract` or `/openapi` returns 404, stop with a precise
+feature-not-deployed blocker containing the target URL and HTTP status. Report
+missing registration or scoped-board capability specifically; never guess a
+replacement endpoint or substitute broad MCP/Connected Apps worker scopes.
 
 ## Local planning helper
 

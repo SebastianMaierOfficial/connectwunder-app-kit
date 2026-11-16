@@ -31,6 +31,21 @@ The agent follows [setup](skills/build-connectwunder-app/references/setup.md),
 [navigation](skills/build-connectwunder-app/references/navigation.md) and
 [security](skills/build-connectwunder-app/references/security.md) as needed.
 
+## Find the official workspace-app contract
+
+Use the `resource` URL returned by the registrar; its path is
+`/api/workspace-apps/v1`. Read `GET <resource>/contract` for discovery and
+`GET <resource>/openapi` for the full official OpenAPI schemas. Both endpoints
+require no authentication and return static contract/configuration only.
+See [setup](skills/build-connectwunder-app/references/setup.md) and
+[data](skills/build-connectwunder-app/references/data.md) for the live-target check.
+
+This is separate from the general `/openapi.yaml`; missing workspace-app routes
+in that older/general specification do not establish incompatibility. A 404 at
+the confirmed target's workspace-app discovery endpoint is a feature-not-deployed
+blocker to report with its exact URL and status. Do not guess endpoints or replace
+apps.* scopes with broad legacy access.
+
 ## What is included
 
 - A single maintained Agent Skill, plus short host entrypoints.

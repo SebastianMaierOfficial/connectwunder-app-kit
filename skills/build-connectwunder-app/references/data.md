@@ -5,6 +5,23 @@ API client SDK. Use the app's own public-PKCE authorization and the canonical
 `/api/workspace-apps/v1` resource. Fetch with a bounded timeout and reject redirects
 rather than forwarding an Authorization header to another origin.
 
+Discover the official Workspace Apps v1 contract at `GET <resource>/contract`
+and its full OpenAPI at `GET <resource>/openapi`, using the exact `oauth.resource`
+returned by registration (path `/api/workspace-apps/v1`). These unauthenticated
+endpoints expose static contract/configuration only; they do not grant private
+read access. Follow the discovery response's `endpoints.openapi` URL for complete
+schemas instead of maintaining another copy in the app.
+
+The declared v1 identity response uses `contractVersion: "workspace-apps-v1"`;
+the navigation response uses `schemaVersion: 1`. Check the live target's discovery,
+OpenAPI and authenticated response versions before accepting them. A source
+contract does not prove deployment. Reject unsupported versions rather than
+inventing a mapping. The general `/openapi.yaml` is a separate specification;
+missing workspace-app routes there do not establish incompatibility. A 404 from
+the confirmed workspace-app `/contract` or `/openapi` URL is a target-specific
+feature-not-deployed blocker: report that URL/status and stop, without switching
+to broad legacy scopes or guessing another endpoint.
+
 The workspace-app read contract provides:
 
 | Path below the resource | Scope | Response |
