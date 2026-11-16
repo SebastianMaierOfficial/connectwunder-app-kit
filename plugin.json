@@ -1,0 +1,10 @@
+{
+  "name": "connectwunder-app-kit",
+  "version": "0.1.0",
+  "description": "Build private ConnectWunder workspace applications with a shared Agent Skill.",
+  "author": {
+    "name": "ConnectWunder contributors"
+  },
+  "license": "MIT",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+}

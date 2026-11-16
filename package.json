@@ -1,0 +1,38 @@
+{
+  "name": "@connectwunder/app-kit",
+  "version": "0.1.0",
+  "description": "Framework-independent building blocks and an Agent Skill for private ConnectWunder workspace apps",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    "./auth": {
+      "types": "./src/auth.d.ts",
+      "import": "./src/auth.js"
+    },
+    "./navigation": {
+      "types": "./src/navigation.d.ts",
+      "import": "./src/navigation.js"
+    },
+    "./navigation.css": "./src/navigation.css",
+    "./setup": "./src/setup.js"
+  },
+  "files": [
+    "src",
+    "skills",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "package:hosts": "node scripts/package-hosts.mjs",
+    "setup:check": "node scripts/setup.mjs check",
+    "qualify:worker": "node scripts/qualify-worker.mjs"
+  }
+}
