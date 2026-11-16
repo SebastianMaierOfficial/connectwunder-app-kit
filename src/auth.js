@@ -113,7 +113,9 @@ function configValue(input) {
   if (!Number.isInteger(cookieSeconds) || cookieSeconds < 1 || cookieSeconds > SESSION_SECONDS) fail('configuration_invalid');
   const cryptoApi = input.crypto ?? globalThis.crypto;
   if (!cryptoApi?.subtle || !cryptoApi?.getRandomValues) fail('crypto_unavailable');
-  return { issuer: issuer.origin, appOrigin: app.origin, resource: resource.href, authorizationEndpoint: auth.href, tokenEndpoint: endpoint.href, revocationEndpoint: revoke.href, clientId: input.clientId, scopes: [...input.scopes].sort(), callbackPath, launchPath, allowedReturnPaths: returns, timeout, cookieSeconds, crypto: cryptoApi, fetch: input.fetch ?? globalThis.fetch, now: input.now ?? Date.now };
+  const suppliedFetch = input.fetch ?? globalThis.fetch;
+  const fetch = suppliedFetch === globalThis.fetch ? suppliedFetch.bind(globalThis) : suppliedFetch;
+  return { issuer: issuer.origin, appOrigin: app.origin, resource: resource.href, authorizationEndpoint: auth.href, tokenEndpoint: endpoint.href, revocationEndpoint: revoke.href, clientId: input.clientId, scopes: [...input.scopes].sort(), callbackPath, launchPath, allowedReturnPaths: returns, timeout, cookieSeconds, crypto: cryptoApi, fetch, now: input.now ?? Date.now };
 }
 function assertRequest(request, config) {
   if (!(request instanceof Request)) fail('request_required');
@@ -142,6 +144,12 @@ async function limitedJson(result) {
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { fail('provider_response_invalid'); }
 }
+async function rejectProviderRedirect(result) {
+  if (!(result instanceof Response)) fail('provider_response_invalid');
+  if (result.status >= 300 && result.status < 400) {
+    try { await result.body?.cancel(); } finally { fail('provider_redirect_denied'); }
+  }
+}
 async function bounded(config, work) {
   const controller = new AbortController();
   let timer;
@@ -162,7 +170,8 @@ export function createWorkspaceAppAuth(input) {
   const config = configValue(input);
   const sessionLine = value => setCookie(SESSION_COOKIE, object64(value), config.cookieSeconds);
   async function exchange(fields, signal, priorRefresh) {
-    const result = await config.fetch(config.tokenEndpoint, { method: 'POST', redirect: 'error', signal, headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }, body: new URLSearchParams({ ...fields, client_id: config.clientId, resource: config.resource }) });
+    const result = await config.fetch(config.tokenEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }, body: new URLSearchParams({ ...fields, client_id: config.clientId, resource: config.resource }) });
+    await rejectProviderRedirect(result);
     const body = await limitedJson(result);
     if (!result.ok) {
       if ([400, 401].includes(result.status) && ['invalid_grant', 'invalid_client', 'invalid_scope', 'invalid_target'].includes(body?.error)) return null;
@@ -246,7 +255,9 @@ export function createWorkspaceAppAuth(input) {
         const current = session(request);
         if (!current) return response(204, '', [setCookie(SESSION_COOKIE, '', 0), setCookie(FLOW_COOKIE, '', 0)]);
         return await bounded(config, async signal => {
-          const revoked = await config.fetch(config.revocationEndpoint, { method: 'POST', redirect: 'error', signal, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.clientId, token: current.r, token_type_hint: 'refresh_token' }) });
+          const revoked = await config.fetch(config.revocationEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.clientId, token: current.r, token_type_hint: 'refresh_token' }) });
+          await rejectProviderRedirect(revoked);
+          await revoked.body?.cancel();
           if (!revoked.ok) fail('provider_unavailable');
           return response(204, '', [setCookie(SESSION_COOKIE, '', 0), setCookie(FLOW_COOKIE, '', 0)]);
         });

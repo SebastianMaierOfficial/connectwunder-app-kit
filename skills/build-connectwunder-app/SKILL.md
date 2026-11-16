@@ -22,7 +22,10 @@ hosting when suitable. This kit does not require a particular agent or model API
    obtain the required human sign-in/consent. Setup access is not runtime access.
 4. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
    and [navigation](references/navigation.md). Keep tokens server-only and exact
-   environment/client/resource bindings. The registered launch route always starts
+   environment/client/resource bindings. Use portable manual redirects plus explicit
+   rejection/cancellation of all 3xx responses for credential-bearing provider calls;
+   do not substitute a fetch mock for a native host-network test.
+   The registered launch route always starts
    PKCE to bind the app to the current ConnectWunder user, even with an old app session.
 5. Follow [security](references/security.md) and the checks below. Do not label a
    simulated check as a real provider or hosting result. Resolve failures, then

@@ -59,14 +59,28 @@ adapter responsibility.
 For a protected read, make the explicit API call in a server-only callback:
 
 ```js
-return auth.withAccessToken(request, (accessToken, signal) =>
-  fetch(configuration.resource + '/identity', {
+return auth.withAccessToken(request, async (accessToken, signal) => {
+  const result = await fetch(configuration.resource + '/identity', {
     headers: { authorization: 'Bearer ' + accessToken },
-    redirect: 'error',
+    redirect: 'manual',
     signal,
-  })
-);
+  });
+  if (result.status >= 300 && result.status < 400) {
+    await result.body?.cancel();
+    throw new Error('provider_redirect_denied');
+  }
+  return result;
+});
 ```
+
+Use `redirect: 'manual'` and reject every 300–399 response before parsing or
+returning it. Cancel its body and never fetch its Location. This works with
+Workers' native fetch, which does not support `redirect: 'error'`; see the
+[official Request contract](https://developers.cloudflare.com/workers/runtime-apis/request/).
+Token, refresh and revoke requests in the helper use this same boundary. The
+helper binds the native global fetch alias to its required global receiver; custom
+or already-bound fetch functions keep their own semantics. If your server adapter
+captures native fetch for its own requests, preserve that receiver too.
 
 The callback must return a Response and honor the supplied AbortSignal. Never
 serialize its token argument or add a general URL-accepting proxy. The helper

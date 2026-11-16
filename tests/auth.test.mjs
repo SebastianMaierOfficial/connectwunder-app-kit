@@ -23,7 +23,7 @@ function makeProvider() {
   }
   const body = pair => Response.json({ access_token: pair.a, refresh_token: pair.r, token_type: 'Bearer', expires_in: 900, scope: scopes.join(' ') });
   fixture.fetch = async (url, options) => {
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     const form = new URLSearchParams(options.body);
     assert.equal(form.get('client_id'), fixed.clientId);
     if (url === fixed.revocationEndpoint) {
@@ -224,4 +224,66 @@ test('configuration rejects broad scopes, cross-origin endpoints and excessive t
 test('logout without an app session is harmless and idempotent', async () => {
   const f = makeProvider(), auth = f.auth();
   assert.equal((await auth.logout(req('/logout', undefined, { method: 'POST', headers: { origin } }))).status, 204);
+});
+
+test('every token endpoint 3xx is rejected before parsing and redirect bodies are canceled', async () => {
+  for (let status = 300; status < 400; status++) {
+    let canceled = 0, calls = 0;
+    const auth = createWorkspaceAppAuth({ ...fixed, fetch: async (_url, options) => {
+      calls++;
+      assert.equal(options.redirect, 'manual');
+      const body = status === 304 ? null : new ReadableStream({ cancel() { canceled++; } });
+      return new Response(body, { status, headers: { location: 'https://trap.example.invalid/credentials' } });
+    } });
+    const launch = await auth.launch(req('/auth/connectwunder/launch'));
+    const state = new URL(launch.headers.get('location')).searchParams.get('state');
+    const result = await auth.callback(req('/auth/connectwunder/callback?code=synthetic-code&state=' + state, cookie(launch, FLOW_COOKIE)));
+    assert.equal(result.status, 503, String(status));
+    assert.equal(result.headers.has('set-cookie'), false);
+    assert.equal(result.headers.has('location'), false);
+    assert.equal(calls, 1);
+    assert.equal(canceled, status === 304 ? 0 : 1);
+  }
+});
+
+test('refresh and revocation redirects are canceled, preserve the session and never retry another target', async () => {
+  const fixture = makeProvider();
+  const auth = fixture.auth();
+  const logged = await login(auth);
+  fixture.expire(decode(logged.session).a);
+  for (let status = 300; status < 400; status++) {
+    let canceled = 0, calls = 0;
+    const blocked = fixture.auth({ fetch: async (_url, options) => {
+      calls++;
+      assert.equal(options.redirect, 'manual');
+      return new Response(status === 304 ? null : new ReadableStream({ cancel() { canceled++; } }), { status, headers: { location: 'https://trap.example.invalid/credentials' } });
+    } });
+    const refreshed = await blocked.withAccessToken(req('/', logged.session), fixture.useToken);
+    const revoked = await blocked.logout(req('/logout', logged.session, { method: 'POST', headers: { origin } }));
+    for (const result of [refreshed, revoked]) {
+      assert.equal(result.status, 503, String(status));
+      assert.equal(result.headers.has('set-cookie'), false);
+      assert.equal(result.headers.has('location'), false);
+    }
+    assert.equal(calls, 2);
+    assert.equal(canceled, status === 304 ? 0 : 2);
+  }
+});
+
+test('native global fetch aliases keep their receiver while custom bound injections stay untouched', async () => {
+  const priorGlobal = globalThis.fetch, fixture = makeProvider();
+  globalThis.fetch = async function (...args) {
+    assert.equal(this, globalThis);
+    return fixture.fetch(...args);
+  };
+  try {
+    for (const explicitAlias of [false, true]) {
+      const auth = createWorkspaceAppAuth({ ...fixed, ...(explicitAlias ? { fetch: globalThis.fetch } : {}) });
+      assert.equal((await login(auth)).result.status, 303);
+    }
+    const ownReceiver = {};
+    const custom = (async function (...args) { assert.equal(this, ownReceiver); return fixture.fetch(...args); }).bind(ownReceiver);
+    const auth = createWorkspaceAppAuth({ ...fixed, fetch: custom });
+    assert.equal((await login(auth)).result.status, 303);
+  } finally { globalThis.fetch = priorGlobal; }
 });

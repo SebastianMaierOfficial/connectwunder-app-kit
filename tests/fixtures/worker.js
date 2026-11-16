@@ -87,7 +87,7 @@ export default {
       const rejected = await auth.withAccessToken(new Request(origin + '/api/identity', { headers: { cookie: cookie(parallel[0], SESSION_COOKIE) || session } }), useToken);
       policyActive = true;
       const checks = { pkceCallback: first.status === 303 && complete.status === 303, protectedRead: authorized.status === 200, parallelRefresh: parallel.every(result => result.status === 200), sameRefreshSuccessor: refreshTokens.length === 2 && refreshTokens[0] === refreshTokens[1], noStore: parallel.every(result => result.headers.get('cache-control') === 'no-store'), rejectedPolicy: rejected.status === 401 && !rejected.headers.has('location'), secureHttpOnlyCookie: cookieLines(complete).some(line => line.startsWith(SESSION_COOKIE + '=') && line.includes('Secure; HttpOnly; SameSite=Lax')) };
-      return Response.json({ status: Object.values(checks).every(Boolean) ? 'pass' : 'fail', runtime: 'workerd', nodeCompatibility: false, syntheticProvider: true, checks });
+      return Response.json({ status: Object.values(checks).every(Boolean) ? 'pass' : 'fail', runtime: 'workerd', nodeCompatibility: false, syntheticProvider: true, providerTransport: 'injected-in-process-fetch-stub', nativeProviderNetwork: false, checks });
     }
     return new Response(null, { status: 404 });
   },

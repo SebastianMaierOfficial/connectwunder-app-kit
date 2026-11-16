@@ -92,10 +92,30 @@ node scripts/qualify-worker.mjs --binary /path/to/workerd \
   --scratch /new/disposable/worker-check --evidence .local/worker-check
 ```
 
-The script performs no downloads and starts only a loopback synthetic provider
-fixture. It runs the same auth source inside workerd without Node compatibility,
-records source hashes and closes its own runtime. This proves local runtime
-behavior, not a hosted Sites installation or live ConnectWunder acceptance.
+The script performs no downloads. It runs the shared auth source in workerd
+without Node compatibility, first with an injected synthetic state-machine
+provider and then with **native global fetch over actual loopback HTTP**. The
+second check covers default and explicit native global-fetch aliases, successful
+callback, refresh, revoke and read requests, plus
+explicit 3xx rejection and a receiving redirect trap that must see zero requests.
+Only loopback IPv4/IPv6 networking is granted; no public provider is contacted.
+Source hashes and separate transport coverage are recorded, and all owned
+servers/runtimes are closed.
+
+Cancellation is also testable against the real runtime, with no fetch mock:
+
+```sh
+node scripts/test-worker-signals.mjs --binary /path/to/workerd \
+  --scratch /new/disposable/signal-check --evidence .local/signal-check
+```
+
+This interrupts an in-flight native HTTP request with SIGINT and SIGTERM, requires
+nonzero canceled exits and checks that the owned runtime and both loopback
+interfaces are closed. Cancellation is never reported as a successful qualification.
+
+Earlier injected-provider fixture results qualify helper state transitions, not
+native network transport. Neither local check establishes a hosted Sites
+installation or live ConnectWunder acceptance; test the deployed application too.
 
 ---
 

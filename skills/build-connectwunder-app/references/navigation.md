@@ -38,7 +38,10 @@ optional styles. Override `--cw-nav-background`, `--cw-nav-foreground`,
 
 A custom renderer can consume the same authorized data without importing this
 element or any framework package. Preserve a clear route back to ConnectWunder,
-the current workspace and the active destination. Every external-facing page
+the current workspace and the active destination. Keep a visible route back on
+loading, sign-in, denied and error screens: before authorized navigation is
+available, use only a fixed deployment-approved ConnectWunder home URL, then
+follow the provider's workspace-bound href unchanged. Every external-facing page
 must have visible Imprint and Privacy links, including loading/error/login pages;
 headless rendering must add them itself.
 

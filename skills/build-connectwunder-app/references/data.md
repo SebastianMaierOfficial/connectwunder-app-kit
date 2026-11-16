@@ -3,7 +3,12 @@
 Use direct, explicit HTTP requests from your app's server. There is no required
 API client SDK. Use the app's own public-PKCE authorization and the canonical
 `/api/workspace-apps/v1` resource. Fetch with a bounded timeout and reject redirects
-rather than forwarding an Authorization header to another origin.
+rather than forwarding an Authorization header to another origin. Use
+`redirect: 'manual'`, reject every status from 300 through 399, cancel its body,
+and never request its Location. The auth reference includes an explicit example.
+Do not use `redirect: 'error'`: native Workers rejects that mode before sending
+the request. A mock fetch returning Response objects does not qualify this
+transport; test the host's native fetch against an actual HTTP endpoint.
 
 Discover the official Workspace Apps v1 contract at `GET <resource>/contract`
 and its full OpenAPI at `GET <resource>/openapi`, using the exact `oauth.resource`
