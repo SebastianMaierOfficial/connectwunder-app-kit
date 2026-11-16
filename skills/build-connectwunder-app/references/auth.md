@@ -34,6 +34,28 @@ smooth. The helper does not accept user IDs or bearer values in the launch URL.
 Only a configured return-path allowlist is accepted. Direct app navigation can
 use its existing app session; navigation from ConnectWunder must use launch.
 
+## Document route errors
+
+The helper returns framework-neutral transport responses. The application owns
+the page shown when a top-level launch or callback request fails. Render a short,
+readable explanation in the app's UI with an explicit manual retry action, a way
+back to ConnectWunder and visible Imprint/Privacy links. Use reviewed configuration
+or approved navigation links for those actions. Do not send raw helper JSON as the
+browser's document, echo query values, state, codes, tokens or request/provider
+URLs, or expose internal exception details.
+
+When adapting an error response to HTML, preserve its original HTTP status and
+security headers, including `no-store` and every separate `Set-Cookie` header and
+cookie deletion. Update only representation headers as needed for the HTML body;
+do not turn a 4xx/503 into a successful page status or lose cookie clears through
+a lossy header copy. Keep successful redirect responses intact. Retry must require
+an explicit user action; an immediate redirect back into login can create a loop.
+
+Protected API errors remain structured JSON with their original status and
+security behavior. Verify denied/expired callbacks and provider outages as actual
+browser documents as well as API responses. No UI framework is required by this
+adapter responsibility.
+
 For a protected read, make the explicit API call in a server-only callback:
 
 ```js

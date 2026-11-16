@@ -43,6 +43,7 @@ hosting when suitable. This kit does not require a particular agent or model API
   access are denied by server requests, not merely hidden in the interface.
 - Refresh works under parallel requests; rejected refresh returns one clean 401,
   and timeouts preserve recoverable local work instead of redirecting in a loop.
+- Launch/callback document failures follow the [auth error-page contract](references/auth.md#document-route-errors).
 - Actual browser checks cover the feature, narrow-screen layout, keyboard access,
   loading/empty/error states and visible Imprint/Privacy links.
 - Source, browser JSON, screenshots, logs and published examples reveal no tokens
