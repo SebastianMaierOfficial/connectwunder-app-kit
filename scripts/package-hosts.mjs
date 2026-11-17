@@ -14,7 +14,11 @@ for(const host of ['openai','claude']){
  const target=path.join(generated,host);
  await rm(target,{recursive:true,force:true});
  await mkdir(target,{recursive:true});
- for(const name of ['skills','src','scripts','tests','package.json','README.md','AGENTS.md','CLAUDE.md','LICENSE']) await cp(path.join(root,name),path.join(target,name),{recursive:true});
+ for(const name of ['skills','src','scripts','tests','package.json','README.md','AGENTS.md','CLAUDE.md','LICENSE']){
+  // Claude plugins load the maintained skill; the repository CLAUDE.md router is not plugin context.
+  if(host==='claude'&&name==='CLAUDE.md')continue;
+  await cp(path.join(root,name),path.join(target,name),{recursive:true});
+ }
  const manifest={name:'connectwunder-app-kit',version:pkg.version,description:'Build private ConnectWunder workspace applications with a shared Agent Skill.',author:{name:'ConnectWunder contributors'},license:'MIT'};
  const manifestPath=host==='openai'?path.join(target,'plugin.json'):path.join(target,'.claude-plugin','plugin.json');
  await mkdir(path.dirname(manifestPath),{recursive:true});
