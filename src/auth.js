@@ -4,6 +4,7 @@ export const FLOW_COOKIE = '__Host-cw_app_flow';
 const REQUIRED_SCOPE = 'apps.identity.read';
 const PERMITTED_SCOPES = new Set([REQUIRED_SCOPE, 'apps.navigation.read', 'apps.boards.read', 'apps.boards.items.create', 'apps.boards.items.fields.write', 'apps.boards.notes.create']);
 const MAX_TIMEOUT = 10_000;
+const MAX_OPERATION_TIMEOUT = 60_000;
 const FLOW_SECONDS = 300;
 const SESSION_SECONDS = 30 * 24 * 60 * 60;
 const encoder = new TextEncoder();
@@ -109,13 +110,15 @@ function configValue(input) {
   if (returns.includes(callbackPath) || returns.includes(launchPath)) fail('configuration_invalid');
   const timeout = input.timeoutMs ?? MAX_TIMEOUT;
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > MAX_TIMEOUT) fail('configuration_invalid');
+  const operationTimeout = input.operationTimeoutMs ?? timeout;
+  if (!Number.isInteger(operationTimeout) || operationTimeout < 1 || operationTimeout > MAX_OPERATION_TIMEOUT) fail('configuration_invalid');
   const cookieSeconds = input.sessionMaxAgeSeconds ?? SESSION_SECONDS;
   if (!Number.isInteger(cookieSeconds) || cookieSeconds < 1 || cookieSeconds > SESSION_SECONDS) fail('configuration_invalid');
   const cryptoApi = input.crypto ?? globalThis.crypto;
   if (!cryptoApi?.subtle || !cryptoApi?.getRandomValues) fail('crypto_unavailable');
   const suppliedFetch = input.fetch ?? globalThis.fetch;
   const fetch = suppliedFetch === globalThis.fetch ? suppliedFetch.bind(globalThis) : suppliedFetch;
-  return { issuer: issuer.origin, appOrigin: app.origin, resource: resource.href, authorizationEndpoint: auth.href, tokenEndpoint: endpoint.href, revocationEndpoint: revoke.href, clientId: input.clientId, scopes: [...input.scopes].sort(), callbackPath, launchPath, allowedReturnPaths: returns, timeout, cookieSeconds, crypto: cryptoApi, fetch, now: input.now ?? Date.now };
+  return { issuer: issuer.origin, appOrigin: app.origin, resource: resource.href, authorizationEndpoint: auth.href, tokenEndpoint: endpoint.href, revocationEndpoint: revoke.href, clientId: input.clientId, scopes: [...input.scopes].sort(), callbackPath, launchPath, allowedReturnPaths: returns, timeout, operationTimeout, cookieSeconds, crypto: cryptoApi, fetch, now: input.now ?? Date.now };
 }
 function assertRequest(request, config) {
   if (!(request instanceof Request)) fail('request_required');
@@ -124,21 +127,39 @@ function assertRequest(request, config) {
 function assertMutationOrigin(request, config) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) || request.headers.get('origin') !== config.appOrigin) fail('origin_invalid');
 }
-async function limitedJson(result) {
+function assertActive(signal) {
+  if (signal.aborted) fail('request_timeout');
+}
+async function guardedResponse(signal, work, invalidCode = 'provider_response_invalid') {
+  assertActive(signal);
+  const result = await work();
+  if (signal.aborted) {
+    if (result instanceof Response) { try { await result.body?.cancel(); } catch {} }
+    fail('request_timeout');
+  }
+  if (!(result instanceof Response)) fail(invalidCode);
+  return result;
+}
+async function limitedJson(result, signal) {
   if (!(result instanceof Response)) fail('provider_response_invalid');
   const reader = result.body?.getReader();
   if (!reader) fail('provider_response_invalid');
   const chunks = [];
   let length = 0;
+  const abort = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener('abort', abort, { once: true });
   try {
+    if (signal.aborted) abort();
+    assertActive(signal);
     while (true) {
       const item = await reader.read();
+      assertActive(signal);
       if (item.done) break;
       length += item.value.byteLength;
       if (length > 16_384) { await reader.cancel(); fail('provider_response_invalid'); }
       chunks.push(item.value);
     }
-  } finally { reader.releaseLock(); }
+  } finally { signal.removeEventListener('abort', abort); reader.releaseLock(); }
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
@@ -150,13 +171,26 @@ async function rejectProviderRedirect(result) {
     try { await result.body?.cancel(); } finally { fail('provider_redirect_denied'); }
   }
 }
-async function bounded(config, work) {
+async function bounded(config, work, parentSignal, timeout = config.timeout) {
   const controller = new AbortController();
-  let timer;
+  let timer, rejectLimit;
+  const abort = () => {
+    rejectLimit(new WorkspaceAppAuthError('request_timeout'));
+    controller.abort();
+  };
   const limit = new Promise((_, reject) => {
-    timer = setTimeout(() => { controller.abort(); reject(new WorkspaceAppAuthError('request_timeout')); }, config.timeout);
+    rejectLimit = reject;
+    timer = setTimeout(abort, timeout);
   });
-  try { return await Promise.race([work(controller.signal), limit]); } finally { clearTimeout(timer); }
+  parentSignal?.addEventListener('abort', abort, { once: true });
+  try {
+    if (parentSignal?.aborted) abort();
+    const pending = Promise.resolve().then(() => { assertActive(controller.signal); return work(controller.signal); });
+    return await Promise.race([pending, limit]);
+  } finally {
+    clearTimeout(timer);
+    parentSignal?.removeEventListener('abort', abort);
+  }
 }
 function random(config) { return bytes64(config.crypto.getRandomValues(new Uint8Array(32))); }
 function safeFailure(error) {
@@ -170,9 +204,9 @@ export function createWorkspaceAppAuth(input) {
   const config = configValue(input);
   const sessionLine = value => setCookie(SESSION_COOKIE, object64(value), config.cookieSeconds);
   async function exchange(fields, signal, priorRefresh) {
-    const result = await config.fetch(config.tokenEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }, body: new URLSearchParams({ ...fields, client_id: config.clientId, resource: config.resource }) });
+    const result = await guardedResponse(signal, () => config.fetch(config.tokenEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }, body: new URLSearchParams({ ...fields, client_id: config.clientId, resource: config.resource }) }));
     await rejectProviderRedirect(result);
-    const body = await limitedJson(result);
+    const body = await limitedJson(result, signal);
     if (!result.ok) {
       if ([400, 401].includes(result.status) && ['invalid_grant', 'invalid_client', 'invalid_scope', 'invalid_target'].includes(body?.error)) return null;
       fail('provider_unavailable');
@@ -232,17 +266,16 @@ export function createWorkspaceAppAuth(input) {
         const current = session(request);
         if (!current) return denied();
         return await bounded(config, async signal => {
-          const first = await useToken(current.a, signal);
-          if (!(first instanceof Response)) fail('response_required');
+          const first = await guardedResponse(signal, () => useToken(current.a, signal), 'response_required');
           if (first.status !== 401) return noStore(first);
           await first.body?.cancel();
-          const next = await exchange({ grant_type: 'refresh_token', refresh_token: current.r }, signal, current.r);
+          const next = await bounded(config, refreshSignal => exchange({ grant_type: 'refresh_token', refresh_token: current.r }, refreshSignal, current.r), signal);
+          assertActive(signal);
           if (!next) return denied();
-          const retried = await useToken(next.a, signal);
-          if (!(retried instanceof Response)) fail('response_required');
+          const retried = await guardedResponse(signal, () => useToken(next.a, signal), 'response_required');
           if (retried.status === 401) { await retried.body?.cancel(); return denied(); }
           return noStore(retried, [sessionLine(next)]);
-        });
+        }, request.signal, config.operationTimeout);
       } catch (error) { return safeFailure(error); }
     },
 
@@ -255,7 +288,7 @@ export function createWorkspaceAppAuth(input) {
         const current = session(request);
         if (!current) return response(204, '', [setCookie(SESSION_COOKIE, '', 0), setCookie(FLOW_COOKIE, '', 0)]);
         return await bounded(config, async signal => {
-          const revoked = await config.fetch(config.revocationEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.clientId, token: current.r, token_type_hint: 'refresh_token' }) });
+          const revoked = await guardedResponse(signal, () => config.fetch(config.revocationEndpoint, { method: 'POST', redirect: 'manual', signal, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.clientId, token: current.r, token_type_hint: 'refresh_token' }) }));
           await rejectProviderRedirect(revoked);
           await revoked.body?.cancel();
           if (!revoked.ok) fail('provider_unavailable');

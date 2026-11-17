@@ -11,7 +11,10 @@ export interface WorkspaceAppAuthConfig {
   launchPath?: string;
   callbackPath?: string;
   allowedReturnPaths?: string[];
+  /** OAuth network budget, 1..10000 ms; defaults to 10000. */
   timeoutMs?: number;
+  /** Total withAccessToken callback/refresh/retry budget, 1..60000 ms. Defaults to timeoutMs. */
+  operationTimeoutMs?: number;
   sessionMaxAgeSeconds?: number;
   /** Synthetic loopback only. Secure cookies remain mandatory. */
   allowLocalhost?: boolean;

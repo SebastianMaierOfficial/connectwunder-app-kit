@@ -84,8 +84,18 @@ captures native fetch for its own requests, preserve that receiver too.
 
 The callback must return a Response and honor the supplied AbortSignal. Never
 serialize its token argument or add a general URL-accepting proxy. The helper
-makes at most one refresh/retry after an upstream 401. Its entire request budget
-is at most ten seconds. Responses are `no-store`; transient failures return 503
+makes at most one refresh/retry after an upstream 401. By default its total
+operation budget is ten seconds. For a known longer server-side operation, set
+`operationTimeoutMs` explicitly (integer milliseconds, maximum `60000`); this
+bounds the complete callback, optional refresh and single retry together. Keep it
+in trusted server configuration, and continue honoring the supplied signal. The
+existing `timeoutMs` remains the separate OAuth network budget (maximum `10000`),
+including refresh inside a longer operation; `operationTimeoutMs` defaults to
+`timeoutMs` when omitted. Parent request/operation cancellation aborts refresh too.
+Late callback/provider responses are canceled without starting another retry.
+Increasing the operation budget does not make a committed mutation safe to repeat:
+retain its original idempotency key/version after an uncertain response.
+Responses are `no-store`; transient failures return 503
 without deleting session cookies. Revoked/invalid refresh returns 401 without
 an automatic redirect. Preserve unsaved work before offering a fresh launch.
 For cookie-authenticated mutations, use the helper and require an exact Origin;

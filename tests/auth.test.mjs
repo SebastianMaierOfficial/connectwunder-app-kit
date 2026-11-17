@@ -311,3 +311,115 @@ test('approved write scope configuration is opt-in and token responses remain ex
  }
  for (const scope of ['apps.boards.write','apps.boards.items.delete','identity.workspace.read','mcp.full']) assert.throws(()=>base.auth({scopes:[...scopes,scope]}));
 });
+
+
+// Advance only controlled deadline timers; login/Web Crypto completes before clock mocking.
+const flushDeadlines = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
+function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+function cancelableResponse(status, canceled) { return new Response(new ReadableStream({ cancel: canceled }), { status }); }
+
+test('operation deadline defaults to10s and explicitly permits60s without a late401 refresh', async t => {
+  for (const deadline of [10_000, 60_000]) {
+    const f = makeProvider(), auth = f.auth(deadline === 10_000 ? {} : { operationTimeoutMs: deadline });
+    const logged = await login(auth), late = deferred();
+    let settled = false, signal, calls = 0, canceled = 0;
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+      const pending = auth.withAccessToken(req('/', logged.session), (_token, currentSignal) => { calls++; signal = currentSignal; return late.promise; }).then(result => { settled = true; return result; });
+      await flushDeadlines(); t.mock.timers.tick(deadline - 1); await flushDeadlines(); assert.equal(settled, false);
+      t.mock.timers.tick(1); const result = await pending;
+      assert.equal(result.status, 503); assert.equal(signal.aborted, true); assert.equal(result.headers.has('set-cookie'), false); assert.equal(result.headers.has('location'), false);
+      late.resolve(cancelableResponse(401, () => { canceled++; })); await flushDeadlines();
+      assert.equal(canceled, 1); assert.equal(calls, 1); assert.equal(f.refreshCalls, 0);
+    } finally { t.mock.timers.reset(); }
+  }
+});
+
+test('operation timeout rejects invalid values and keeps the original network cap', () => {
+  const f = makeProvider();
+  for (const operationTimeoutMs of [0, -1, 60_001, 1.5, '60000', NaN, Infinity]) assert.throws(() => f.auth({ operationTimeoutMs }));
+  assert.doesNotThrow(() => f.auth({ operationTimeoutMs: 60_000 }));
+  assert.throws(() => f.auth({ operationTimeoutMs: 60_000, timeoutMs: 10_001 }));
+});
+
+test('a long operation still gives refresh only10s and cancels its late response without retry', async t => {
+  const f = makeProvider(), logged = await login(f.auth()), late = deferred();
+  f.expire(decode(logged.session).a);
+  let networkSignal, calls = 0, canceled = 0, settled = false;
+  const auth = f.auth({ operationTimeoutMs: 60_000, fetch: (_url, options) => { networkSignal = options.signal; return late.promise; } });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = auth.withAccessToken(req('/', logged.session), token => { calls++; return f.useToken(token); }).then(result => { settled = true; return result; });
+  await flushDeadlines(); assert.ok(networkSignal); t.mock.timers.tick(9_999); await flushDeadlines(); assert.equal(settled, false);
+  t.mock.timers.tick(1); const result = await pending;
+  assert.equal(result.status, 503); assert.equal(networkSignal.aborted, true); assert.equal(result.headers.has('set-cookie'), false);
+  late.resolve(cancelableResponse(200, () => { canceled++; })); await flushDeadlines();
+  assert.equal(canceled, 1); assert.equal(calls, 1);
+});
+
+test('parent request and total operation deadlines abort an in-flight refresh before another callback', async t => {
+  for (const mode of ['request', 'operation']) {
+    const f = makeProvider(), logged = await login(f.auth()), first = deferred(), late = deferred(), parent = new AbortController();
+    let networkSignal, calls = 0, canceled = 0;
+    const auth = f.auth({ operationTimeoutMs: 60_000, fetch: (_url, options) => { networkSignal = options.signal; return late.promise; } });
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+      const pending = auth.withAccessToken(req('/', logged.session, { signal: parent.signal }), () => { calls++; return first.promise; });
+      await flushDeadlines(); if (mode === 'operation') t.mock.timers.tick(55_000);
+      first.resolve(new Response(null, { status: 401 })); await flushDeadlines(); assert.ok(networkSignal); assert.equal(networkSignal.aborted, false);
+      if (mode === 'request') parent.abort(); else t.mock.timers.tick(5_000);
+      const result = await pending; assert.equal(result.status, 503); assert.equal(networkSignal.aborted, true); assert.equal(result.headers.has('set-cookie'), false);
+      late.resolve(cancelableResponse(200, () => { canceled++; })); await flushDeadlines(); assert.equal(canceled, 1); assert.equal(calls, 1);
+    } finally { t.mock.timers.reset(); }
+  }
+});
+
+test('a pre-aborted request does not invoke its callback or provider', async () => {
+  const f = makeProvider(), auth = f.auth({ operationTimeoutMs: 60_000 }), logged = await login(auth), parent = new AbortController();
+  parent.abort(); let calls = 0;
+  const result = await auth.withAccessToken(req('/', logged.session, { signal: parent.signal }), () => { calls++; return Response.json({ ok: true }); });
+  assert.equal(result.status, 503); assert.equal(calls, 0); assert.equal(f.refreshCalls, 0); assert.equal(result.headers.has('set-cookie'), false);
+});
+
+test('a successful operation past10s refreshes once and preserves rotated cookie semantics', async t => {
+  const f = makeProvider(), auth = f.auth({ operationTimeoutMs: 60_000 }), logged = await login(auth), first = deferred();
+  f.expire(decode(logged.session).a); let calls = 0;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = auth.withAccessToken(req('/', logged.session), token => { calls++; return calls === 1 ? first.promise : f.useToken(token); });
+  await flushDeadlines(); t.mock.timers.tick(11_000); first.resolve(new Response(null, { status: 401 }));
+  const result = await pending; assert.equal(result.status, 200); assert.equal(calls, 2); assert.equal(f.refreshCalls, 1);
+  assert.notEqual(decode(cookie(result, SESSION_COOKIE)).r, decode(logged.session).r); assert.deepEqual(await result.json(), { principal: 'user-a' }); assert.equal(result.headers.get('cache-control'), 'no-store');
+});
+
+test('a timed-out retry cancels its late body and never performs a second refresh', async t => {
+  const f = makeProvider(), auth = f.auth({ operationTimeoutMs: 60_000 }), logged = await login(auth), late = deferred();
+  f.expire(decode(logged.session).a); let calls = 0, canceled = 0;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = auth.withAccessToken(req('/', logged.session), token => { calls++; return calls === 1 ? f.useToken(token) : late.promise; });
+  await flushDeadlines(); assert.equal(calls, 2); assert.equal(f.refreshCalls, 1);
+  t.mock.timers.tick(60_000); assert.equal((await pending).status, 503);
+  late.resolve(cancelableResponse(401, () => { canceled++; })); await flushDeadlines(); assert.equal(canceled, 1); assert.equal(calls, 2); assert.equal(f.refreshCalls, 1);
+});
+
+test('long-operation opt-in does not extend callback or revoke HTTP deadlines', async t => {
+  const f = makeProvider(), logged = await login(f.auth()); let networkSignal;
+  const auth = f.auth({ operationTimeoutMs: 60_000, fetch: (_url, options) => { networkSignal = options.signal; return new Promise(() => {}); } });
+  const launch = await auth.launch(req('/auth/connectwunder/launch'));
+  const callback = req('/auth/connectwunder/callback?' + new URLSearchParams({ code: 'synthetic-code-a', state: new URL(launch.headers.get('location')).searchParams.get('state') }), cookie(launch, FLOW_COOKIE));
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const run of [() => auth.callback(callback), () => auth.logout(req('/logout', logged.session, { method: 'POST', headers: { origin } }))]) {
+    const pending = run(); await flushDeadlines(); t.mock.timers.tick(10_000); const result = await pending;
+    assert.equal(result.status, 503); assert.equal(networkSignal.aborted, true); assert.equal(result.headers.has('set-cookie'), false);
+  }
+});
+
+
+test('refresh deadline cancels a stalled token response body after headers arrived', async t => {
+  const f = makeProvider(), logged = await login(f.auth()); f.expire(decode(logged.session).a);
+  let canceled = 0, calls = 0;
+  const body = new ReadableStream({ cancel() { canceled++; } });
+  const auth = f.auth({ operationTimeoutMs: 60_000, fetch: async () => new Response(body, { status: 200 }) });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = auth.withAccessToken(req('/', logged.session), token => { calls++; return f.useToken(token); });
+  await flushDeadlines(); assert.equal(body.locked, true); t.mock.timers.tick(10_000);
+  const result = await pending; await flushDeadlines(); assert.equal(result.status, 503); assert.equal(canceled, 1); assert.equal(calls, 1); assert.equal(result.headers.has('set-cookie'), false); assert.equal(body.locked, false);
+});
