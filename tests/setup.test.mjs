@@ -22,3 +22,36 @@ test('configuration maps only server-confirmed registration and matching issuer 
  assert.throws(()=>configurationFromRegistration({...registration,oauth:{...registration.oauth,scopes:['mcp.full']}},manifest,metadata));
  assert.throws(()=>configurationFromRegistration({...registration,application:{...registration.application,origin:'https://other.example.invalid'}},manifest,metadata));
 });
+
+
+test('explicit board write grants preserve read-only manifests and demand exact configured action scopes', () => {
+ const read = validateApplicationManifest(manifest);
+ assert.equal('boardWriteGrants' in read, false);
+ assert.deepEqual(validateApplicationManifest({...manifest, boardWriteGrants: []}), read);
+ const grant = {boardId: 'synthetic-board', actions: ['notes.create', 'items.fields.write', 'items.create'], createColumnIds: ['synthetic-column'], createFieldKeys: ['title_key'], updateFieldKeys: ['status_key']};
+ const write = {...manifest, boardWriteGrants: [grant]};
+ const scopes = [...registration.oauth.scopes, 'apps.boards.notes.create', 'apps.boards.items.create', 'apps.boards.items.fields.write'];
+ const response = {...registration, oauth: {...registration.oauth, scopes}};
+ assert.deepEqual(configurationFromRegistration(response, write, metadata).scopes, scopes);
+ assert.throws(() => configurationFromRegistration(response, manifest, metadata));
+ assert.throws(() => configurationFromRegistration(registration, write, metadata));
+ assert.throws(() => configurationFromRegistration({...response, oauth: {...response.oauth, scopes: [...scopes, 'mcp.full']}}, write, metadata));
+ const normalized = validateApplicationManifest(write);
+ assert.deepEqual(normalized.boardWriteGrants[0].actions, ['items.create', 'items.fields.write', 'notes.create']);
+ assert.equal('boardWriteGrants' in manifest, false);
+});
+
+test('write planning rejects authority expansion and accepts explicit no-field creation', () => {
+ const grant = {boardId:'synthetic-board', actions:['items.create'], createColumnIds:['synthetic-column'], createFieldKeys:[]};
+ assert.deepEqual(validateApplicationManifest({...manifest,boardWriteGrants:[grant]}).boardWriteGrants[0].createFieldKeys, []);
+ for (const bad of [
+  {...grant,boardId:'unselected-board'}, {...grant,actions:['items.delete']}, {...grant,actions:['items.create','items.create']},
+  {...grant,createColumnIds:[]}, {...grant,createFieldKeys:undefined}, {...grant,createFieldKeys:['bad-key']},
+  {...grant,createFieldKeys:['same','same']}, {...grant,createFieldKeys:Array.from({length:41},(_,i)=>'f'+i)},
+  {...grant,updateFieldKeys:['unrequested']}, {...grant,extra:true},
+  {boardId:'synthetic-board',actions:['items.fields.write'],updateFieldKeys:[]},
+ ]) assert.throws(() => validateApplicationManifest({...manifest,boardWriteGrants:[bad]}));
+ assert.throws(() => validateApplicationManifest({...manifest,boardWriteGrants:[grant,grant]}));
+ assert.throws(() => validateApplicationManifest({...manifest,mode:'external',boardIds:[],boardWriteGrants:[grant]}));
+ assert.throws(() => validateApplicationManifest({...manifest,boardWriteGrants:[{boardId:'synthetic-board',actions:['notes.create'],createFieldKeys:[]}]}));
+});

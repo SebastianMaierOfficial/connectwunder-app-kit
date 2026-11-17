@@ -1,6 +1,6 @@
 ---
 name: build-connectwunder-app
-description: Build or integrate a private, externally hosted ConnectWunder workspace application with owner-approved registration, user login, scoped board reads and navigation. Use for dashboards, portals and small workspace apps; not for public feeds, autonomous workers or general ConnectWunder record maintenance.
+description: Build or integrate a private, externally hosted ConnectWunder workspace application with owner-approved registration, user login, scoped board access and navigation. Use for dashboards, portals and small workspace apps; not for public feeds, autonomous workers or general ConnectWunder record maintenance.
 ---
 
 # Build a ConnectWunder application
@@ -20,18 +20,22 @@ hosting when suitable. This kit does not require a particular agent or model API
    owner/admin setup UI to prepare registration. Resolve IDs through authorized
    reads. Show the actual requested audience, board scope and application origin;
    obtain the required human sign-in/consent. Setup access is not runtime access.
-4. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
+4. For requested board mutations, use only the target's explicitly advertised
+   action grants and scopes from [setup](references/setup.md#optional-board-write-access).
+   Preserve current user rights, version conflicts, stable retry keys and the
+   provider's existing credit policy. Read access never implies write access.
+5. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
    and [navigation](references/navigation.md). Keep tokens server-only and exact
    environment/client/resource bindings. Use portable manual redirects plus explicit
    rejection/cancellation of all 3xx responses for credential-bearing provider calls;
    do not substitute a fetch mock for a native host-network test.
    The registered launch route always starts
    PKCE to bind the app to the current ConnectWunder user, even with an old app session.
-5. Follow [security](references/security.md) and the checks below. Do not label a
+6. Follow [security](references/security.md) and the checks below. Do not label a
    simulated check as a real provider or hosting result. Resolve failures, then
    test the same user workflow again. Stop only for a named missing access,
    business decision or external dependency that you cannot safely resolve.
-6. Report the usable URL, included behavior, actual checks, any remaining gap and
+7. Report the usable URL, included behavior, actual checks, any remaining gap and
    who owns its next action. Publish or change an audience only within the user's
    authorization. Never silently make a private Sites application public.
 

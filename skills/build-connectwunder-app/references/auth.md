@@ -129,3 +129,13 @@ recovery. Long-stale/revoked sessions fail with a clean 401, not a loop.
 References: [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html),
 [Browser application guidance](https://www.rfc-editor.org/rfc/rfc10017.html),
 [cookie attributes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie).
+
+## Explicit write scopes
+
+The helper accepts the three declared board write scopes in addition to the read
+scopes. It never adds them to a configured read-only app. Use the exact scopes
+confirmed by registration and target discovery; token and refresh responses must
+match the configured set exactly. Broader MCP/Connected App profiles, an unknown
+write name, a missing requested scope or an extra returned scope are rejected.
+This client allowlist does not grant server permission; live user, app, board and
+action checks remain mandatory on each provider mutation.

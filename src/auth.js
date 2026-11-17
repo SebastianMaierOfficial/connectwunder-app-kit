@@ -2,7 +2,7 @@
 export const SESSION_COOKIE = '__Host-cw_app_session';
 export const FLOW_COOKIE = '__Host-cw_app_flow';
 const REQUIRED_SCOPE = 'apps.identity.read';
-const PERMITTED_SCOPES = new Set([REQUIRED_SCOPE, 'apps.navigation.read', 'apps.boards.read']);
+const PERMITTED_SCOPES = new Set([REQUIRED_SCOPE, 'apps.navigation.read', 'apps.boards.read', 'apps.boards.items.create', 'apps.boards.items.fields.write', 'apps.boards.notes.create']);
 const MAX_TIMEOUT = 10_000;
 const FLOW_SECONDS = 300;
 const SESSION_SECONDS = 30 * 24 * 60 * 60;

@@ -60,7 +60,17 @@ simpler. Login on the Site does not make an upstream public feed private.
 Application-owned saved layouts or copied text may reveal source information;
 apply the source audience to those stored copies as well.
 
-This version has read scopes only. Do not implement board mutations by borrowing
-a builder/admin token. Ask for the supported, separately authorized provider
-command when the requested workflow needs writes. Extra application-owned data
-is not an excuse to duplicate provider-owned identity or workspace permissions.
+Optional, explicitly approved writes use `apps.boards.items.create`,
+`apps.boards.items.fields.write` and `apps.boards.notes.create`. They do not grant
+generic CRUD, delete, move, schema changes or arbitrary events. Each operation
+also requires its current selected-board action grant and the current human's
+ordinary permissions. Keep reference boards read-only. Discover exact request,
+version-precondition, retry and credit semantics from the live target's contract;
+stop if those operations are not deployed. Never borrow a builder/admin token.
+
+A field edit must preserve untouched fields and include the authoritative item
+version. A stale conflict needs a fresh read and review, never an automatic
+whole-map overwrite. Reuse the same creation or note intent key after a lost
+response, so duplicate delivery cannot create or charge twice. Real application
+owned state must be protected by its verified workspace/app audience; it is not
+an excuse to duplicate provider-owned identity or workspace permissions.

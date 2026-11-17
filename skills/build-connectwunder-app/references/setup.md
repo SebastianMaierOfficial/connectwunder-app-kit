@@ -62,7 +62,7 @@ replacement endpoint or substitute broad MCP/Connected Apps worker scopes.
 
 Write the reviewed manifest in the application's ignored `.local/` folder.
 The shape is `name`, optional `description`, `mode: "managed"`, exact `origin`,
-optional `entryPath`/`callbackUrl`, selected `boardIds`, `visibility` and
+optional `entryPath`/`callbackUrl`, selected `boardIds`, optional `boardWriteGrants`, `visibility` and
 `allowedUserIds`. Workspace visibility requires no user list; selected visibility
 requires explicit active human IDs. An external navigation-only link uses
 `mode: "external"` and cannot request managed boards or an OAuth callback.
@@ -93,3 +93,29 @@ This copies only the confirmed public-client configuration. It rejects mismatche
 origins, scopes, callbacks or discovery endpoints, and never overwrites a different
 existing configuration. Move the resulting values to the host's protected runtime
 configuration. Do not commit workspace-specific setup files or tokens.
+
+## Optional board write access
+
+Read-only registrations keep their existing shape and scopes. Request writes only
+when the user's workflow needs them and the live target's discovery/OpenAPI
+advertises the exact actions. An older target is a feature-not-deployed blocker;
+never substitute `mcp.full`, an API key or another user's token.
+
+`boardWriteGrants` is an explicit list of selected-board constraints. Each entry
+contains `boardId` and `actions`, chosen from `items.create`, `items.fields.write`
+and `notes.create`. It may not refer to a board outside `boardIds`. Creation must
+name `createColumnIds` and `createFieldKeys` (an empty field list deliberately
+allows no custom fields). Field editing must name nonempty `updateFieldKeys`.
+Constraints for unrequested actions are rejected. A reference-only board receives
+no write grant. The agent resolves real column/field identifiers from authorized
+metadata; users should review readable board names and actions, not type IDs.
+
+The owner/admin approves registration; the current user separately consents to
+the requested access. Scope and live board action grant and current user rights
+are all required. No write permission is inferred from workspace ownership or
+from a read grant. Registration changes can require new user consent.
+
+Use stable intent/mutation keys for retries. External app writes retain the
+provider's existing API credit policy, including 4 credits for successful creation;
+an exact replay must not create or charge a second operation. Other write pricing
+and detailed request/precondition formats come from the target contract.

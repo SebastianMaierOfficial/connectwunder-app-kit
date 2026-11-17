@@ -287,3 +287,27 @@ test('native global fetch aliases keep their receiver while custom bound injecti
     assert.equal((await login(auth)).result.status, 303);
   } finally { globalThis.fetch = priorGlobal; }
 });
+
+
+test('approved write scope configuration is opt-in and token responses remain exact', async () => {
+ const writes = ['apps.boards.items.create','apps.boards.items.fields.write','apps.boards.notes.create'];
+ const base = makeProvider();
+ const read = await base.auth().launch(req('/auth/connectwunder/launch'));
+ assert.deepEqual(new URL(read.headers.get('location')).searchParams.get('scope').split(' '), [...scopes].sort());
+ for (const chosen of writes.map(value => [value]).concat([writes])) {
+  const configured = [...scopes,...chosen];
+  let returned = configured.join(' ');
+  const auth = createWorkspaceAppAuth({...fixed,scopes:configured,fetch:async()=>Response.json({access_token:'cw_at_synthetic_write_only',refresh_token:'cw_rt_synthetic_write_only',token_type:'Bearer',expires_in:900,scope:returned})});
+  const accepted = await login(auth);
+  assert.deepEqual(accepted.location.searchParams.get('scope').split(' '), [...configured].sort());
+  for (const mismatch of [scopes.join(' '),configured.join(' ')+' mcp.full',configured.join(' ')+' '+chosen[0]]) {
+   returned=mismatch;
+   const launch=await auth.launch(req('/auth/connectwunder/launch'));
+   const state=new URL(launch.headers.get('location')).searchParams.get('state');
+   const denied=await auth.callback(req('/auth/connectwunder/callback?code=synthetic-code&state='+state,cookie(launch,FLOW_COOKIE)));
+   assert.equal(denied.status,503);
+   assert.equal(denied.headers.has('set-cookie'),false);
+  }
+ }
+ for (const scope of ['apps.boards.write','apps.boards.items.delete','identity.workspace.read','mcp.full']) assert.throws(()=>base.auth({scopes:[...scopes,scope]}));
+});
