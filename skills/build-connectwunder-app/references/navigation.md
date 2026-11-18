@@ -1,16 +1,115 @@
 # Navigation and appearance
 
-Use the authorized navigation response as data. Its visibility does not grant
-access to the linked app or board. Each destination still checks its own access.
-Do not reconstruct hidden links from names or accept arbitrary launch targets.
+## Default for a new workspace app: full sidebar
 
-The optional `src/navigation.js` module registers a browser-native element:
+Build new ConnectWunder-integrated apps with the full authorized workspace
+sidebar. Users should find the familiar workspace modules, including People when
+allowed, Dashboard overview/areas/apps, and eligible settings/developer links.
+Keep the app's own views in its content or local navigation. A single return link
+or a flat subset is not the default new-app experience.
+
+Use `src/navigation.js` and adjacent `navigation.css` for the framework-free native
+renderer. If the project deliberately uses its own renderer, preserve the same
+full authorized model, order, current app, responsive access and legal links.
+
+1. Check the target's official contract, then request
+   `GET <resource>/navigation?view=sidebar&locale=de` (or `locale=en`) inside the
+   app's authenticated server flow. Follow the [auth](auth.md) transport rules:
+   server-only access token, manual redirects, rejection/cancellation of every
+   3xx, bounded response and the operation's AbortSignal.
+2. Validate the response's workspace/application against the current authorized
+   identity and the registered app context. Require `sidebar.schemaVersion === 1`
+   and matching `sidebar.workspaceId`. The sidebar is current private data;
+   never serve it through a public asset or an unauthenticated JSON route. Its
+   visibility is not authorization for any destination. Each destination checks
+   access again. Never reconstruct hidden links, recipients or launch targets.
+3. Map only the validated fields into a render model. Deliver it through the
+   app's protected bootstrap or server-rendered page, without the bearer token.
+   If embedding JSON in HTML, escape `<` so labels cannot close a script element;
+   use text nodes for labels and do not interpolate raw markup.
+4. Mount the same component before data is ready and on sign-in, denied and error
+   screens. Initially use a generic workspace label, empty items, and fixed
+   deployment-approved home/legal URLs. Replace this with current authorized data
+   only after checks succeed. On actor/workspace/access loss remove the old
+   private model and cached names, including when a module finishes loading late.
+
+The first normal browser model is the full sidebar, not the legacy flat list:
 
 ```js
-import { defineConnectWunderNavigation } from './src/navigation.js';
+import { defineConnectWunderNavigation } from './navigation.js';
 defineConnectWunderNavigation();
 const navigation = document.querySelector('connectwunder-nav');
 navigation.allowedOrigins = approvedNavigationOrigins;
+navigation.model = {
+  presentation: 'sidebar', locale: 'de',
+  workspaceName: sidebar.workspaceName, homeHref: sidebar.homeHref,
+  activeId: sidebar.activeId, items: sidebar.items, legal: sidebar.legal,
+};
+```
+
+`sidebar` above is the validated protected server result. The component does not
+fetch or authenticate. `allowedOrigins` contains the exact app, provider and
+legal-link origins approved by the deployment configuration; never derive them
+from arbitrary incoming values. If the confirmed target lacks the advertised
+sidebar field/route, report feature-not-deployed and its exact endpoint/status.
+Do not silently replace it with a partial menu or broaden OAuth scopes.
+
+The additive version-1 wire model contains `workspaceId`, `workspaceName`,
+`homeHref`, optional `activeId`, `items` and `legal`. An item contains
+`{id,label,href,icon,section,current?}`. Sections are `dashboards`, `primary`,
+`settings`, `developers`. Dashboard overview, areas and accessible apps are peers;
+application management appears in Settings only when the server allows it.
+People and every other module retain the current workspace's permissions.
+
+Preserve the provider's item order. Each disclosure appears at its first item;
+primary links remain in order around it. Dashboard, Settings and Developer groups
+use native keyboard-operable disclosures. The active group opens initially;
+otherwise Settings and Developers start collapsed. User toggles survive model
+redraws in that element only, without browser storage. Primary links have no
+extra heading. The authorized settings root keeps its exact URL and appears as
+Overview inside Settings, avoiding a duplicate label.
+
+The sidebar accepts at most 200 items, IDs/labels up to 200 Unicode characters,
+and approved URLs up to 2048 characters. `activeId` marks the current app; it does
+not grant app access. Import `navigationIcons` to inspect the supported icon-name
+list; arbitrary SVG, HTML and CSS are not accepted as icons. Labels are text.
+Canonical provider return/launch URLs keep their workspace context unchanged;
+their query parameters are navigation data, not workspace authority.
+
+## Serving, layout and acceptance
+
+Serve `navigation.js` and adjacent `navigation.css` together. If a bundler moves
+assets, preserve or resolve the CSS URL. Shadow DOM confines styles. Override
+`--cw-nav-background`, `--cw-nav-foreground`, `--cw-nav-muted`, `--cw-nav-primary`,
+`--cw-nav-active`, `--cw-nav-border`, `--cw-nav-font` and `--cw-nav-width` as needed;
+`::part(navigation)`, `::part(home-link)`, `::part(item-link)` and `::part(legal)`
+provide additional control. Preserve contrast and visible keyboard focus.
+
+Give the element a definite desktop height, for example `100dvh`, and reserve
+its default `16rem` width beside the app. At 48rem or below it becomes a menu
+button opening a native modal drawer with focus containment, Escape, backdrop
+dismissal and focus return. A React adapter only needs a ref that sets the two
+properties; the kit itself has no framework dependency.
+
+Keep a visible route back and Imprint/Privacy links in normal, loading, sign-in,
+denied and error states. Before authorized navigation exists, only fixed trusted
+home/legal URLs are available; afterwards follow the provider's exact opaque
+workspace-bound href. Headless/custom rendering owns the same requirements.
+
+Verify an actual new-project browser journey: full sidebar beside useful app
+content, authorized modules/apps only, current app, correct-workspace return,
+long labels, narrow screen, disclosure keyboard access, mobile focus/Escape,
+loading/error fallback, and immediate private-model removal after access loss.
+Navigation opens ordinary top-level pages; no iframe or remote app code is
+injected into the ConnectWunder session. Different domains remain visible in the
+address bar.
+
+## Existing flat integrations
+
+The older small render model remains compatible for an existing or deliberately
+limited integration. It does not become the new-project default:
+
+```js
 navigation.model = {
   workspaceName: workspaceDisplayName,
   homeHref: approvedConnectWunderHome,
@@ -19,33 +118,7 @@ navigation.model = {
 };
 ```
 
-`items` is a small render model: `{id,label,href,current?}`. Map the provider DTO
-explicitly. Workspace display names accept up to 200 characters; ordinary link
-labels remain limited to 160. Canonical ConnectWunder return-resolver links keep
-their workspace context unchanged. Their query parameters are navigation data,
-not authority to select another workspace or bypass destination checks.
-`allowedOrigins` contains the exact app, provider and legal-link
-origins approved by the deployment configuration. It is not taken from arbitrary
-user input. Invalid origins/protocols, token-bearing links and duplicate IDs are
-rejected. Labels are rendered as text. The component does not fetch or authorize.
-
-Serve `navigation.js` and adjacent `navigation.css` together. If a bundler moves
-assets, ensure its output preserves/resolves the CSS URL. Shadow DOM confines the
-optional styles. Override `--cw-nav-background`, `--cw-nav-foreground`,
-`--cw-nav-muted`, `--cw-nav-primary`, `--cw-nav-active`, `--cw-nav-border` and
-`--cw-nav-font`; `::part(navigation)`, `::part(home-link)`, `::part(item-link)` and
-`::part(legal)` provide additional control. Keep contrast and keyboard focus.
-
-A custom renderer can consume the same authorized data without importing this
-element or any framework package. Preserve a clear route back to ConnectWunder,
-the current workspace and the active destination. Keep a visible route back on
-loading, sign-in, denied and error screens: before authorized navigation is
-available, use only a fixed deployment-approved ConnectWunder home URL, then
-follow the provider's workspace-bound href unchanged. Every external-facing page
-must have visible Imprint and Privacy links, including loading/error/login pages;
-headless rendering must add them itself.
-
-Test desktop and a narrow viewport with actual long labels. Navigation opens
-ordinary top-level pages; this kit does not inject remote app code into the
-ConnectWunder session or require an iframe. A separate domain/page transition
-remains visible in the address bar.
+Flat items use `{id,label,href,current?}`, up to 60 items with 160-character labels.
+Workspace names accept 200 characters. Both modes reject unsafe origins,
+credentials, token-bearing links and duplicate IDs. The renderer never replaces
+server authorization.

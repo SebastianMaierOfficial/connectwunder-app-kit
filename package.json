@@ -1,6 +1,6 @@
 {
   "name": "@connectwunder/app-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-independent building blocks and an Agent Skill for private ConnectWunder workspace apps",
   "type": "module",
   "private": true,

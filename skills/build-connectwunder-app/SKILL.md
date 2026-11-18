@@ -25,7 +25,11 @@ hosting when suitable. This kit does not require a particular agent or model API
    Preserve current user rights, version conflicts, stable retry keys and the
    provider's existing credit policy. Read access never implies write access.
 5. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
-   and [navigation](references/navigation.md). Keep tokens server-only and exact
+   and the default [full workspace sidebar](references/navigation.md). New apps
+   show the current authorized modules, Dashboard areas/apps and eligible settings
+   using the framework-free component or an equivalent full renderer. Preserve the
+   provider's order and show the same navigation shell in loading/recovery states;
+   a lone back link or legacy flat subset is not the default. Keep tokens server-only and exact
    environment/client/resource bindings. Use portable manual redirects plus explicit
    rejection/cancellation of all 3xx responses for credential-bearing provider calls;
    do not substitute a fetch mock for a native host-network test.
@@ -42,7 +46,9 @@ hosting when suitable. This kit does not require a particular agent or model API
 ## Small completion check
 
 - The intended user can open the app from ConnectWunder, use the first meaningful
-  feature and return to the correct workspace.
+  feature and return to the correct workspace through the familiar full sidebar.
+  Its modules/apps follow current rights; loading/denied/error states retain safe
+  home/legal links and never keep another actor's private navigation.
 - A second opening reuses an active approved connection without another manual
   password step. Initial/changed consent and expired login remain honest user steps.
 - Existing app user B cannot persist when launching from ConnectWunder user A.

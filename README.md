@@ -4,6 +4,10 @@ Build a private application around your ConnectWunder workspace with an AI agent
 Keep your preferred frontend framework and hosting. Use ConnectWunder for the
 workspace, access controls, supported data and the route back to your team.
 
+Beta preview: the full shared sidebar and application access controls target
+ConnectWunder Beta. Check the selected environment’s live contract before using
+these capabilities; a Beta release does not enable them in Production.
+
 Start your AI in this repository, or give it this instruction together with a
 reviewed copy of the repository:
 
@@ -23,7 +27,9 @@ not authorize the application to reuse that agent's credentials.
   using that host's supported plugin or local-skill interface. The generated
   package is not automatically published to any directory.
 - Existing application: use the [server auth helper](skills/build-connectwunder-app/references/auth.md)
-  and optional [navigation element](skills/build-connectwunder-app/references/navigation.md).
+  and the default [full workspace sidebar](skills/build-connectwunder-app/references/navigation.md).
+  Its native element works without a UI framework; a custom renderer can preserve
+  the same complete authorized navigation.
 
 The agent follows [setup](skills/build-connectwunder-app/references/setup.md),
 [auth](skills/build-connectwunder-app/references/auth.md),
@@ -50,7 +56,9 @@ apps.* scopes with broad legacy access.
 
 - A single maintained Agent Skill, plus short host entrypoints.
 - A dependency-free server-only public-PKCE/session helper using Web APIs.
-- An optional native `<connectwunder-nav>` element and overridable CSS variables.
+- Full workspace navigation with a native `<connectwunder-nav>` renderer and
+  overridable CSS variables; authorized modules, Dashboard areas/apps and settings
+  remain familiar alongside the app's own content.
 - A small validation flow and synthetic tests. There is no general data API SDK.
 
 Registration belongs to a workspace owner/admin. Application visibility and the
@@ -68,7 +76,10 @@ npm run package:hosts
 ```
 
 No package installation or build is needed for these checks. Local setup planning
-is available through `node scripts/setup.mjs` and never asks for a raw Firebase token. Runtime compatibility
+uses `node scripts/setup.mjs check`, `plan` and `configure` to validate registration
+plans and prepare runtime configuration. The shared skill guides the agent in
+building the app and its full sidebar; the CLI does not generate an app scaffold
+or ask for a raw Firebase token. Runtime compatibility
 must be measured separately: Node success is not proof of Workers/Sites support.
 The provider must support app-specific grant revocation and its bounded parallel
 refresh policy. A live installation still needs its own callback, membership,
