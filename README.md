@@ -85,6 +85,21 @@ The provider must support app-specific grant revocation and its bounded parallel
 refresh policy. A live installation still needs its own callback, membership,
 revocation and repeated-launch acceptance.
 
+## Navigation appearance
+
+The native sidebar follows ConnectWunder's Core geometry, semantic colors and
+navigation density. Its desktop width includes an 8px inset; narrow screens use
+a 56px menu header. Serve the matching JavaScript and CSS together and preserve
+the host's safe loading/error shell while styles are pending.
+
+The component can display ConnectWunder's existing public mark at its fixed Core
+asset path. It reuses an existing Inter font or registers Google's public Inter
+subsets without blocking navigation, using the same font provider as Core.
+Brand assets and Inter's [SIL Open Font License](https://github.com/google/fonts/blob/main/ofl/inter/OFL.txt)
+remain separate from the MIT source license; no mark/font binary or internal
+application/Foundation asset is bundled. Hosts retain control through their CSP
+and `--cw-nav-font`. See the [appearance and CSP guidance](skills/build-connectwunder-app/references/navigation.md#serving-layout-and-acceptance).
+
 ## License and boundaries
 
 New kit files are MIT licensed; see [LICENSE](LICENSE). The ConnectWunder name and

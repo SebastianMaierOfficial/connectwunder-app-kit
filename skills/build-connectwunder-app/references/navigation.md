@@ -81,14 +81,44 @@ their query parameters are navigation data, not workspace authority.
 Serve `navigation.js` and adjacent `navigation.css` together. If a bundler moves
 assets, preserve or resolve the CSS URL. Shadow DOM confines styles. Override
 `--cw-nav-background`, `--cw-nav-foreground`, `--cw-nav-muted`, `--cw-nav-primary`,
-`--cw-nav-active`, `--cw-nav-border`, `--cw-nav-font` and `--cw-nav-width` as needed;
+`--cw-nav-active`, `--cw-nav-active-foreground`, `--cw-nav-border`,
+`--cw-nav-surface`, `--cw-nav-font` and `--cw-nav-width` as needed;
 `::part(navigation)`, `::part(home-link)`, `::part(item-link)` and `::part(legal)`
 provide additional control. Preserve contrast and visible keyboard focus.
 
 Give the element a definite desktop height, for example `100dvh`, and reserve
-its default `16rem` width beside the app. At 48rem or below it becomes a menu
+its default `16rem` width beside the app. That width includes the desktop rail's
+8px inset around its bordered, 10px-rounded panel. The default typography,
+32px rows, 16px icons, 28px text subrows and semantic colors follow ConnectWunder's
+Core appearance. The current workspace name appears in the compact footer;
+no current-user identity, account action or unread count is inferred from it.
+
+The brand mark is a public PNG at the fixed `/brand/connectwunder-mark.png` path
+on the supported `https://beta.connectwunder.com` or
+`https://app.connectwunder.com` home origin. The component never accepts an image
+URL or markup from the navigation model. Its 24px space is reserved; the wordmark
+stays usable if the image fails. A host CSP must allow that exact public image
+source; do not broaden authenticated `connect-src` or expose tokens. The mark's
+rights remain separate from this MIT code; no brand binary is bundled.
+
+The component uses `Inter, sans-serif` by default. If the document already defines
+Inter, it reuses that font. Otherwise it registers the fixed public Inter subsets
+from `https://fonts.gstatic.com/s/inter/v20/` through the native FontFace API once
+per document. The browser loads only glyph subsets needed by rendered text, using
+`font-display: swap`; registration never waits for a font download or stylesheet.
+If the API, CSP or network blocks a font, navigation stays usable with sans-serif.
+A host CSP can allow the fixed font paths advertised in `navigation.js` under
+`font-src`; no Google stylesheet/style origin or authenticated `connect-src`
+expansion is needed. To keep the component on an existing host font, override
+`--cw-nav-font`. No font binary is packaged. Inter's font software is separately
+licensed under the [SIL Open Font License](https://github.com/google/fonts/blob/main/ofl/inter/OFL.txt),
+not the kit's MIT source license. Font request behavior follows the host's normal
+browser and referrer policy, as in Core's existing Google Fonts delivery.
+
+At 48rem or below it becomes a 56px header with a labeled menu
 button opening a native modal drawer with focus containment, Escape, backdrop
-dismissal and focus return. A React adapter only needs a ref that sets the two
+dismissal and focus return. The drawer is 18rem wide when space allows. Keep any
+application-owned sticky-header offset synchronized with the 56px mobile header. A React adapter only needs a ref that sets the two
 properties; the kit itself has no framework dependency.
 
 Keep a visible route back and Imprint/Privacy links in normal, loading, sign-in,

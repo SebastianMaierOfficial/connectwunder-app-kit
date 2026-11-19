@@ -59,7 +59,7 @@ test('sidebar rejects unadvertised structure and missing or oversized URLs; lowe
 });
 
 test('actual element renders sections, active links and hostile labels with DOM text; mobile controls own their dialog',()=>{
- const saved=new Map(['document','location','customElements','HTMLElement','matchMedia'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ const saved=new Map(['document','location','customElements','HTMLElement','matchMedia','FontFace'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  class Element {
   constructor(tag='host'){this.tagName=tag;this.children=[];this.attrs=new Map();this.handlers=new Map();this.open=false;}
   setAttribute(k,v){this.attrs.set(k,String(v));} getAttribute(k){return this.attrs.get(k);} toggleAttribute(k,on){if(on)this.attrs.set(k,'');else this.attrs.delete(k);}
@@ -83,6 +83,40 @@ test('actual element renders sections, active links and hostile labels with DOM 
   element.model=element.model;assert.equal(group('settings').open,true);assert.equal(group('dashboards').open,false);
   const oldGroup=group('settings');element.model=element.model;oldGroup.open=false;oldGroup.handlers.get('toggle')();element.model=element.model;assert.equal(group('settings').open,true);
   mobile=true;element.disconnectedCallback();element.connectedCallback();assert.equal(group('settings').open,true);const dialog=element.shadowRoot.querySelector('dialog');assert.ok(dialog);const toggle=walk(element.shadowRoot).find(n=>n.className==='menu-toggle');toggle.handlers.get('click')();assert.equal(dialog.open,true);assert.equal(toggle.getAttribute('aria-expanded'),'true');dialog.close();assert.equal(toggle.getAttribute('aria-expanded'),'false');assert.equal(toggle.focused,true);
-  element.model={...model,presentation:'sidebar',items:[]};assert.equal(walk(element.shadowRoot).some(n=>n.textContent===label),false);element.disconnectedCallback();
+  element.model={...model,presentation:'sidebar',items:[]};assert.equal(walk(element.shadowRoot).some(n=>n.textContent===label),false);
+  // The only images are fixed public marks at supported Core origins, never label HTML or arbitrary provider assets.
+  const core='https://beta.connectwunder.com',other='https://other-provider.example.invalid';
+  element.allowedOrigins=[origin,provider,core,other];
+  const brandedModel={...model,presentation:'sidebar',homeHref:core+'/app/applications/return?workspaceId=sample&destination=people',items:[{id:'branded',label,href:provider+'/app',section:'primary',icon:'people'}]};
+  element.model=brandedModel;
+  const brandedNodes=walk(element.shadowRoot),images=brandedNodes.filter(n=>n.tagName==='img');
+  assert.equal(images.length,2);assert.ok(brandedNodes.some(n=>n.textContent===label));
+  assert.equal(brandedNodes.filter(n=>n.className==='navigation-footer').length,1);
+  assert.equal(brandedNodes.find(n=>n.className==='workspace').title,model.workspaceName);
+  for(const image of images){assert.equal(image.src,core+'/brand/connectwunder-mark.png');assert.equal(image.alt,'');assert.equal(image.referrerPolicy,'no-referrer');assert.equal(image.getAttribute('width'),'24');assert.equal(image.getAttribute('height'),'24');image.handlers.get('error')();assert.equal(image.hidden,true);}
+  assert.equal(brandedNodes.filter(n=>n.className==='home'&&n.tagName==='a').length,1);
+  assert.equal(brandedNodes.filter(n=>n.className==='home'&&n.tagName==='div').length,1);
+  assert.equal(brandedNodes.find(n=>n.className==='home'&&n.tagName==='div').getAttribute('aria-label'),undefined);
+  assert.equal(brandedNodes.find(n=>n.className==='home'&&n.tagName==='a').href,brandedModel.homeHref);
+  element.model={...brandedModel,homeHref:other+'/app'};
+  assert.equal(walk(element.shadowRoot).filter(n=>n.tagName==='img').length,0);
+  // Font registration is document-scoped and immediate; unresolved font loads never gate rendering.
+  const createdFonts=[];let explicitLoads=0;
+  class PublicFontFace { constructor(family,source,descriptors){this.family=family;this.source=source;this.descriptors=descriptors;this.loaded=new Promise(()=>{});createdFonts.push(this);}load(){explicitLoads+=1;throw Error('Rendering must not explicitly wait for font loading');} }
+  Object.defineProperty(globalThis,'FontFace',{configurable:true,writable:true,value:PublicFontFace});
+  document.fonts=new Set();element.model=brandedModel;
+  assert.equal(document.fonts.size,7);assert.equal(explicitLoads,0);assert.equal(walk(element.shadowRoot).some(n=>n.textContent===label),true);
+  assert.equal(new Set(createdFonts.map(f=>f.source)).size,7);
+  for(const face of createdFonts){assert.equal(face.family,'Inter');assert.match(face.source,/^url\("https:\/\/fonts\.gstatic\.com\/s\/inter\/v20\/[A-Za-z0-9_-]+\.woff2"\)$/u);assert.equal(face.descriptors.weight,'100 900');assert.equal(face.descriptors.display,'swap');assert.match(face.descriptors.unicodeRange,/^U\+/u);}
+  element.model=element.model;mobile=false;element.disconnectedCallback();element.connectedCallback();assert.equal(createdFonts.length,7);
+  const originalDocument=globalThis.document,alreadyDefined={...originalDocument,fonts:new Set([{family:'"Inter"'}])};
+  Object.defineProperty(globalThis,'document',{configurable:true,writable:true,value:alreadyDefined});
+  element.model=brandedModel;assert.equal(alreadyDefined.fonts.size,1);assert.equal(createdFonts.length,7);
+  const blockedFonts={...originalDocument,fonts:{[Symbol.iterator]:function*(){},add(){throw Error('Font installation unavailable');}}};
+  Object.defineProperty(globalThis,'document',{configurable:true,writable:true,value:blockedFonts});
+  assert.doesNotThrow(()=>{element.model=brandedModel;});assert.ok(walk(element.shadowRoot).some(n=>n.textContent===label));
+  Object.defineProperty(globalThis,'document',{configurable:true,writable:true,value:originalDocument});
+  element.model={...model,presentation:'sidebar',items:[]};
+  assert.equal(walk(element.shadowRoot).some(n=>n.textContent===label),false);element.disconnectedCallback();
  }finally{for(const[key,descriptor]of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
 });
