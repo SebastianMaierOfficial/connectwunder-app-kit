@@ -86,9 +86,12 @@ assets, preserve or resolve the CSS URL. Shadow DOM confines styles. Override
 `::part(navigation)`, `::part(home-link)`, `::part(item-link)` and `::part(legal)`
 provide additional control. Preserve contrast and visible keyboard focus.
 
-Give the element a definite desktop height, for example `100dvh`, and reserve
-its default `16rem` width beside the app. That width includes the desktop rail's
-8px inset around its bordered, 10px-rounded panel. The default typography,
+Give the element a definite desktop height, for example `height: 100dvh`, and
+reserve its default `16rem` width beside the app. A percentage height needs a
+definite height through its containing elements; `min-height` alone does not
+establish that percentage-height basis. Keep the rail's internal navigation
+scrollable rather than letting a long menu stretch the page. That width includes
+the desktop rail's 8px inset around its bordered, 10px-rounded panel. The default typography,
 32px rows, 16px icons, 28px text subrows and semantic colors follow ConnectWunder's
 Core appearance. The current workspace name appears in the compact footer;
 no current-user identity, account action or unread count is inferred from it.
@@ -115,11 +118,19 @@ licensed under the [SIL Open Font License](https://github.com/google/fonts/blob/
 not the kit's MIT source license. Font request behavior follows the host's normal
 browser and referrer policy, as in Core's existing Google Fonts delivery.
 
-At 48rem or below it becomes a 56px header with a labeled menu
+At 48rem or below, the `ready` state has a 56px header with a labeled menu
 button opening a native modal drawer with focus containment, Escape, backdrop
-dismissal and focus return. The drawer is 18rem wide when space allows. Keep any
-application-owned sticky-header offset synchronized with the 56px mobile header. A React adapter only needs a ref that sets the two
-properties; the kit itself has no framework dependency.
+dismissal and focus return. The drawer is 18rem wide when space allows. The plain
+loading/error fallback has its natural content height and can be taller than
+56px, particularly on narrow screens or with translated text.
+
+Prefer normal document flow so app content follows the navigation's actual
+height. A fixed or sticky host frame must reserve its actual rendered height in
+every state, for example by measuring the host with a ResizeObserver in the app
+wrapper; do not use a constant 56px content offset for loading/error states.
+Allow the fallback to scroll when needed so its return and legal links remain
+reachable. A React adapter only needs a ref that sets the two properties; the
+kit itself has no framework dependency.
 
 Keep a visible route back and Imprint/Privacy links in normal, loading, sign-in,
 denied and error states. Before authorized navigation exists, only fixed trusted
@@ -130,6 +141,9 @@ Verify an actual new-project browser journey: full sidebar beside useful app
 content, authorized modules/apps only, current app, correct-workspace return,
 long labels, narrow screen, disclosure keyboard access, mobile focus/Escape,
 loading/error fallback, and immediate private-model removal after access loss.
+Include delayed and failed CSS at desktop and mobile sizes, then resize between
+them: the app content must not overlap the navigation or fallback, and home/legal
+links must remain reachable by scrolling and keyboard.
 Navigation opens ordinary top-level pages; no iframe or remote app code is
 injected into the ConnectWunder session. Different domains remain visible in the
 address bar.
