@@ -65,3 +65,6 @@ dialog::backdrop { background:rgb(15 23 42 / .4); }
 .close::after { content:'';position:absolute;inset:-.5rem; }
 @media(max-width:48rem) { :host([sidebar]) { font-size:1rem;line-height:1.5;width:100%;height:auto;flex:none;padding:0; } }
 @media(prefers-reduced-motion:no-preference) { a,button,summary { transition:background-color 150ms ease-out,color 150ms ease-out; } }
+
+/* Keep the applied-styles marker last; adapters must not set it themselves. */
+:host { --cw-nav-stylesheet-ready:1; }

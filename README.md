@@ -100,6 +100,14 @@ remain separate from the MIT source license; no mark/font binary or internal
 application/Foundation asset is bundled. Hosts retain control through their CSP
 and `--cw-nav-font`. See the [appearance and CSP guidance](skills/build-connectwunder-app/references/navigation.md#serving-layout-and-acceptance).
 
+The native renderer keeps the full menu off the live DOM until its current
+stylesheet is applied. Loading/failure retains safe plain home/legal links;
+late or superseded stylesheet callbacks cannot revive an older menu. Adapters
+can observe `data-cw-navigation-state` (`loading`, `ready`, `error`) instead of
+inferring readiness from an old load event or non-null `link.sheet`. The matching
+CSS marker and the 8-second failure deadline are documented in the
+[native readiness contract](skills/build-connectwunder-app/references/navigation.md#native-stylesheet-readiness).
+
 ## License and boundaries
 
 New kit files are MIT licensed; see [LICENSE](LICENSE). The ConnectWunder name and

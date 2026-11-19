@@ -52,8 +52,8 @@ function registerCoreFont(ownerDocument) {
   }
 }
 const copy = {
-  de: { menu:'Navigation öffnen',close:'Navigation schließen',dashboards:'Dashboards',primary:'Workspace',settings:'Einstellungen',developers:'Entwickler',home:'ConnectWunder öffnen',overview:'Übersicht',empty:'Verbinde dich mit ConnectWunder, um deine Navigation zu laden.' },
-  en: { menu:'Open navigation',close:'Close navigation',dashboards:'Dashboards',primary:'Workspace',settings:'Settings',developers:'Developers',home:'Open ConnectWunder',overview:'Overview',empty:'Connect to ConnectWunder to load your navigation.' },
+  de: { loading:'Navigation wird geladen.',unavailable:'Die Navigation ist gerade nicht verfügbar. Du kannst ConnectWunder öffnen oder die Seite erneut laden.',menu:'Navigation öffnen',close:'Navigation schließen',dashboards:'Dashboards',primary:'Workspace',settings:'Einstellungen',developers:'Entwickler',home:'ConnectWunder öffnen',overview:'Übersicht',empty:'Verbinde dich mit ConnectWunder, um deine Navigation zu laden.' },
+  en: { loading:'Loading navigation.',unavailable:'Navigation is currently unavailable. You can open ConnectWunder or reload this page.',menu:'Open navigation',close:'Close navigation',dashboards:'Dashboards',primary:'Workspace',settings:'Settings',developers:'Developers',home:'Open ConnectWunder',overview:'Overview',empty:'Connect to ConnectWunder to load your navigation.' },
 };
 export function normalizeNavigation(model, allowedOrigins, baseOrigin) {
   if (!model || !Array.isArray(model.items) || model.items.length > (model.presentation === 'sidebar' ? 200 : 60) || !Array.isArray(allowedOrigins) || allowedOrigins.length > 40) throw new TypeError('Navigation model is invalid');
@@ -137,7 +137,7 @@ export function defineConnectWunderNavigation(tagName = 'connectwunder-nav') {
   if (!globalThis.customElements || !globalThis.HTMLElement) throw new TypeError('A browser is required');
   if (customElements.get(tagName)) return customElements.get(tagName);
   class ConnectWunderNavigation extends HTMLElement {
-    #model = null; #origins = [location.origin]; #media = null; #expanded = new Map(); #selection = null; #generation = 0;
+    #model = null; #origins = [location.origin]; #media = null; #expanded = new Map(); #selection = null; #generation = 0; #connected = false; #release = null;
     #resize = () => this.#render();
     constructor() { super(); this.attachShadow({mode:'open'}); }
     set allowedOrigins(origins) {
@@ -153,16 +153,27 @@ export function defineConnectWunderNavigation(tagName = 'connectwunder-nav') {
       this.#selection=selected?.id || null;this.#model=next;this.#render();
     }
     get model(){return this.#model;}
-    connectedCallback(){this.#media=globalThis.matchMedia?.('(max-width: 48rem)') || null;this.#media?.addEventListener('change',this.#resize);this.#render();}
-    disconnectedCallback(){this.#media?.removeEventListener('change',this.#resize);this.shadowRoot.querySelector('dialog')?.close();}
+    connectedCallback(){this.#connected=true;this.#media=globalThis.matchMedia?.('(max-width: 48rem)') || null;this.#media?.addEventListener('change',this.#resize);this.#render();}
+    disconnectedCallback(){
+      this.#connected=false;++this.#generation;this.#release?.();this.#release=null;
+      this.#media?.removeEventListener('change',this.#resize);this.shadowRoot.querySelector('dialog')?.close();
+      this.shadowRoot.replaceChildren();this.setAttribute('data-cw-navigation-state','loading');
+    }
     #render(){
       const generation=++this.#generation;
+      this.#release?.();this.#release=null;this.setAttribute('data-cw-navigation-state','loading');
       const root=this.shadowRoot;root.querySelector('dialog')?.close();root.replaceChildren();
-      const sheet=document.createElement('link');sheet.rel='stylesheet';sheet.href=new URL('./navigation.css',import.meta.url).href;root.append(sheet);
-      if(!this.#model)return;
+      const sheet=document.createElement('link');sheet.rel='stylesheet';sheet.href=new URL('./navigation.css',import.meta.url).href;
+      if(!this.#model){root.append(sheet);return;}
       const model=this.#model,words=copy[model.locale],sidebar=model.presentation==='sidebar';
       if(sidebar)registerCoreFont(document);
       this.toggleAttribute('sidebar',sidebar);
+      // No full menu, image or SVG enters the live tree before its stylesheet is ready.
+      const status=document.createElement('div');status.setAttribute('part','status');status.setAttribute('role','status');
+      const statusCopy=document.createElement('p');statusCopy.textContent=words.loading;status.append(statusCopy);
+      const homeStatus=document.createElement('p'),homeReturn=document.createElement('a');homeReturn.href=model.homeHref;homeReturn.textContent=words.home;homeStatus.append(homeReturn);status.append(homeStatus);
+      if(model.legal){const legalStatus=document.createElement('p');for(const[key,title]of[['imprint','Imprint'],['privacy','Privacy']]){const a=document.createElement('a');a.href=model.legal[key];a.textContent=title;legalStatus.append(a,document.createTextNode(' '));}status.append(legalStatus);}
+      const fragment=document.createDocumentFragment();
       const nav=document.createElement('nav');nav.setAttribute('aria-label',model.label);nav.setAttribute('part','navigation');
       const homeLink=(interactive=true)=>{
         const home=document.createElement(interactive?'a':'div');home.className='home';
@@ -203,7 +214,7 @@ export function defineConnectWunderNavigation(tagName = 'connectwunder-nav') {
         const chevron=document.createElementNS('http://www.w3.org/2000/svg','svg');chevron.setAttribute('viewBox','0 0 24 24');chevron.setAttribute('aria-hidden','true');chevron.setAttribute('class','chevron');
         const chevronPath=document.createElementNS('http://www.w3.org/2000/svg','path');chevronPath.setAttribute('d','m9 5 7 7-7 7');chevronPath.setAttribute('fill','none');chevronPath.setAttribute('stroke','currentColor');chevronPath.setAttribute('stroke-width','2');chevronPath.setAttribute('stroke-linecap','round');chevronPath.setAttribute('stroke-linejoin','round');chevron.append(chevronPath);summary.append(chevron);
         group.append(summary);addItems(items,group);
-        group.addEventListener('toggle',()=>{if(this.#generation===generation)this.#expanded.set(section,group.open);});body.append(group);
+        group.addEventListener('toggle',()=>{if(this.#generation===generation && group.isConnected!==false)this.#expanded.set(section,group.open);});body.append(group);
       }flushPrimary();}else addItems(model.items,body);
       nav.append(body);
       const footer=sidebar?document.createElement('div'):nav;
@@ -216,11 +227,27 @@ export function defineConnectWunderNavigation(tagName = 'connectwunder-nav') {
         const dialog=document.createElement('dialog');dialog.setAttribute('aria-label',model.label);
         const close=document.createElement('button');close.type='button';close.className='close';close.setAttribute('aria-label',words.close);close.append(icon('close'));
         close.addEventListener('click',()=>dialog.close());dialog.append(close,nav);
-        toggle.addEventListener('click',()=>{dialog.showModal();toggle.setAttribute('aria-expanded','true');});
-        dialog.addEventListener('close',()=>{toggle.setAttribute('aria-expanded','false');toggle.focus();});
+        toggle.addEventListener('click',()=>{if(this.#generation!==generation || !this.#connected || this.isConnected===false)return;dialog.showModal();toggle.setAttribute('aria-expanded','true');});
+        dialog.addEventListener('close',()=>{toggle.setAttribute('aria-expanded','false');if(this.#generation===generation && this.#connected && this.isConnected!==false && toggle.isConnected!==false && dialog.parentNode===root)toggle.focus();});
         dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
-        nav.addEventListener('click',event=>{if(event.target.closest?.('a'))dialog.close();});root.append(bar,dialog);
-      }else root.append(nav);
+        nav.addEventListener('click',event=>{if(event.target.closest?.('a'))dialog.close();});fragment.append(bar,dialog);
+      }else fragment.append(nav);
+      let ended=false,timeout=null;
+      const current=()=>!ended && this.#connected && this.isConnected!==false && this.#generation===generation && sheet.parentNode===root;
+      const stylesReady=()=>{try{return Boolean(sheet.sheet) && globalThis.getComputedStyle(this).getPropertyValue('--cw-nav-stylesheet-ready').trim()==='1';}catch{return false;}};
+      const cleanup=()=>{clearTimeout(timeout);sheet.removeEventListener('load',loaded);sheet.removeEventListener('error',unavailable);};
+      const unavailable=()=>{if(!current())return;ended=true;cleanup();fragment.replaceChildren();statusCopy.textContent=words.unavailable;this.setAttribute('data-cw-navigation-state','error');};
+      const reveal=()=>{
+        if(!current() || !stylesReady())return;ended=true;cleanup();
+        status.remove();root.append(fragment);this.setAttribute('data-cw-navigation-state','ready');
+      };
+      const loaded=()=>{if(!current())return;if(stylesReady())reveal();else unavailable();};
+      this.#release=()=>{ended=true;cleanup();fragment.replaceChildren();};
+      sheet.addEventListener('load',loaded);sheet.addEventListener('error',unavailable);
+      if(this.#connected)timeout=setTimeout(unavailable,8000);
+      // Install listeners before insertion: cached links can complete immediately.
+      root.append(sheet,status);
+      if(stylesReady())reveal();
     }
   }
   customElements.define(tagName,ConnectWunderNavigation);return ConnectWunderNavigation;

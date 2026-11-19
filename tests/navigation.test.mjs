@@ -59,18 +59,18 @@ test('sidebar rejects unadvertised structure and missing or oversized URLs; lowe
 });
 
 test('actual element renders sections, active links and hostile labels with DOM text; mobile controls own their dialog',()=>{
- const saved=new Map(['document','location','customElements','HTMLElement','matchMedia','FontFace'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ const saved=new Map(['document','location','customElements','HTMLElement','matchMedia','FontFace','getComputedStyle'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  class Element {
-  constructor(tag='host'){this.tagName=tag;this.children=[];this.attrs=new Map();this.handlers=new Map();this.open=false;}
+  constructor(tag='host'){this.tagName=tag;this.children=[];this.attrs=new Map();this.handlers=new Map();this.open=false;if(tag==='link')this.sheet={};}
   setAttribute(k,v){this.attrs.set(k,String(v));} getAttribute(k){return this.attrs.get(k);} toggleAttribute(k,on){if(on)this.attrs.set(k,'');else this.attrs.delete(k);}
-  append(...children){this.children.push(...children);} replaceChildren(...children){this.children=children;} attachShadow(){this.shadowRoot=new Element('shadow');return this.shadowRoot;}
-  addEventListener(k,fn){this.handlers.set(k,fn);} querySelector(tag){return walk(this).find(n=>n.tagName===tag)||null;}
+  append(...children){for(const child of children){if(child.tagName==='fragment'){this.append(...child.children);child.children=[];}else{child.remove?.();child.parentNode=this;this.children.push(child);}}} replaceChildren(...children){for(const child of this.children)child.parentNode=null;this.children=[];this.append(...children);} remove(){if(this.parentNode){this.parentNode.children=this.parentNode.children.filter(child=>child!==this);this.parentNode=null;}} attachShadow(){this.shadowRoot=new Element('shadow');return this.shadowRoot;}
+  addEventListener(k,fn){this.handlers.set(k,fn);} removeEventListener(k,fn){if(this.handlers.get(k)===fn)this.handlers.delete(k);} querySelector(tag){return walk(this).find(n=>n.tagName===tag)||null;}
   showModal(){this.open=true;} close(){if(this.open){this.open=false;this.handlers.get('close')?.();}} focus(){this.focused=true;}
   set innerHTML(value){throw Error('HTML parsing is forbidden in this renderer');}
  }
  const walk=node=>[node,...(node.children||[]).flatMap(walk)];let mobile=false;const registry=new Map();
  try{
-  for(const [key,value] of Object.entries({HTMLElement:Element,location:{origin},matchMedia:()=>({matches:mobile,addEventListener(){},removeEventListener(){}}),customElements:{get:k=>registry.get(k),define:(k,v)=>registry.set(k,v)},document:{createElement:t=>new Element(t),createElementNS:(ns,t)=>new Element(t),createTextNode:text=>({textContent:text})}}))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+  for(const [key,value] of Object.entries({getComputedStyle:()=>({getPropertyValue:key=>key==='--cw-nav-stylesheet-ready'?'1':''}),HTMLElement:Element,location:{origin},matchMedia:()=>({matches:mobile,addEventListener(){},removeEventListener(){}}),customElements:{get:k=>registry.get(k),define:(k,v)=>registry.set(k,v)},document:{createElement:t=>new Element(t),createElementNS:(ns,t)=>new Element(t),createTextNode:text=>({textContent:text}),createDocumentFragment:()=>new Element('fragment')}}))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
   const Type=defineConnectWunderNavigation('sample-navigation');const element=new Type();element.allowedOrigins=[origin,provider];
   const label='<img src=x onerror="sample()">';
   element.model={...model,presentation:'sidebar',activeId:'sample',legal:{imprint:provider+'/imprint',privacy:provider+'/privacy'},items:[{id:'sample',label,href:provider+'/app?workspaceId=sample',section:'dashboards',icon:'app'},{id:'people',label:'Sample people',href:provider+'/people',section:'primary',icon:'people'},{id:'connectwunder-settings',label:'Einstellungen',href:provider+'/settings',section:'settings',icon:'settings'},{id:'help',label:'Sample help',href:provider+'/help',section:'primary',icon:'help'},{id:'sample-api',label:'Sample API',href:provider+'/api',section:'developers',icon:'code'}]};element.connectedCallback();

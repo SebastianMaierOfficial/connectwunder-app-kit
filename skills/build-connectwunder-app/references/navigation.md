@@ -134,6 +134,34 @@ Navigation opens ordinary top-level pages; no iframe or remote app code is
 injected into the ConnectWunder session. Different domains remain visible in the
 address bar.
 
+## Native stylesheet readiness
+
+The native renderer stages its full menu and mobile controls off the live shadow
+DOM. It attaches them only after the current adjacent stylesheet is applied.
+Before that it shows plain, localized status text with the validated current
+ConnectWunder home-return and legal links; workspace names, private destination
+labels, images and SVGs are not attached. No inline style or host-framework guard
+is required for this safe fallback.
+
+Observe the host's `data-cw-navigation-state` attribute when a framework adapter
+needs readiness: `loading` is set before each render, `ready` only after the
+current styled fragment is attached, and `error` on stylesheet failure or its
+8-second deadline. Read its initial value and observe subsequent attribute
+changes; a listener on an older stylesheet does not describe the current render.
+These presentation states never grant data or destination access.
+
+The component checks both the current stylesheet and its computed
+`--cw-nav-stylesheet-ready: 1` marker. A non-null `link.sheet` or a load event
+alone is not proof that the styles applied. The marker is reserved for the
+matching shipped stylesheet; do not set it as a theme override. Serve the exact
+JavaScript/CSS pair together.
+
+An error/deadline is terminal for that render. A late load cannot attach its
+staged menu. Model changes, media redraws and disconnects cancel the old listeners,
+timer and fragment; a subsequent current render can recover when its stylesheet
+is valid. Host access/actor changes must still replace private models as described
+above. Font registration remains nonblocking and independent of this CSS gate.
+
 ## Existing flat integrations
 
 The older small render model remains compatible for an existing or deliberately
