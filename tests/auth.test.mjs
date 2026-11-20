@@ -423,3 +423,38 @@ test('refresh deadline cancels a stalled token response body after headers arriv
   await flushDeadlines(); assert.equal(body.locked, true); t.mock.timers.tick(10_000);
   const result = await pending; await flushDeadlines(); assert.equal(result.status, 503); assert.equal(canceled, 1); assert.equal(calls, 1); assert.equal(result.headers.has('set-cookie'), false); assert.equal(body.locked, false);
 });
+
+
+test('one-use candidate invokes exactly once even for401, preserves old session and ordinary refresh remains available',async()=>{
+ const f=makeProvider(),auth=f.auth(),logged=await login(auth);f.expire(decode(logged.session).a);let calls=0;
+ const candidate=await auth.withCandidateAccessTokenOnce(req('/resume',logged.session,{method:'POST',headers:{origin}}),(token,signal)=>{calls++;assert.equal(signal.aborted,false);return f.useToken(token);});
+ assert.equal(candidate.status,401);assert.equal(calls,1);assert.equal(f.refreshCalls,0);assert.equal(candidate.headers.has('set-cookie'),false);
+ const ordinary=await auth.withAccessToken(req('/',logged.session),f.useToken);assert.equal(ordinary.status,200);assert.equal(f.refreshCalls,1);assert.ok(cookie(ordinary,SESSION_COOKIE));
+});
+test('candidate missing/malformed/duplicate cookie and foreign Origin never call provider or erase the old cookie',async()=>{
+ const f=makeProvider(),auth=f.auth(),logged=await login(auth);let calls=0;
+ for(const [value,requestOrigin]of [[undefined,origin],[SESSION_COOKIE+'=invalid',origin],[logged.session+'; '+logged.session,origin],[logged.session,'https://other.example.invalid']]){
+  const result=await auth.withCandidateAccessTokenOnce(req('/resume',value,{method:'POST',headers:{origin:requestOrigin}}),()=>{calls++;return Response.json({ok:true});});
+  assert.equal(result.status,401);assert.equal(result.headers.has('set-cookie'),false);assert.equal(result.headers.has('location'),false);
+ }
+ assert.equal(calls,0);assert.equal(f.refreshCalls,0);assert.equal((await auth.withAccessToken(req('/',logged.session),f.useToken)).status,200);
+});
+test('candidate never forwards callback Set-Cookie or retries a lost one-use response',async()=>{
+ const f=makeProvider(),auth=f.auth(),logged=await login(auth);let calls=0;
+ const successful=await auth.withCandidateAccessTokenOnce(req('/',logged.session),()=>{calls++;return Response.json({initial:true},{headers:{'set-cookie':SESSION_COOKIE+'=changed','x-sample':'retained'}});});
+ assert.equal(successful.status,200);assert.equal(successful.headers.has('set-cookie'),false);assert.equal(successful.headers.get('x-sample'),'retained');assert.equal(successful.headers.get('cache-control'),'no-store');
+ const lost=await auth.withCandidateAccessTokenOnce(req('/',logged.session),()=>{calls++;throw Error('Sample reply lost after consume');});
+ assert.equal(lost.status,503);assert.equal(calls,2);assert.equal(f.refreshCalls,0);assert.equal(lost.headers.has('set-cookie'),false);
+});
+test('candidate parent abort/deadline cancels late successful body with no retry/refresh or cookie mutation',async t=>{
+ for(const mode of ['parent','deadline']){
+  const f=makeProvider(),auth=f.auth(),logged=await login(auth),late=deferred(),parent=new AbortController();let calls=0,canceled=0,signal;
+  t.mock.timers.enable({apis:['setTimeout']});
+  try{
+   const pending=auth.withCandidateAccessTokenOnce(req('/',logged.session,{signal:parent.signal}),(_token,s)=>{calls++;signal=s;return late.promise;});
+   await flushDeadlines();if(mode==='parent')parent.abort();else t.mock.timers.tick(10000);
+   const result=await pending;assert.equal(result.status,503);assert.equal(signal.aborted,true);assert.equal(result.headers.has('set-cookie'),false);
+   late.resolve(cancelableResponse(200,()=>{canceled++;}));await flushDeadlines();assert.equal(canceled,1);assert.equal(calls,1);assert.equal(f.refreshCalls,0);
+  }finally{t.mock.timers.reset();}
+ }
+});

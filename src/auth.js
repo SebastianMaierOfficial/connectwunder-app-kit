@@ -279,6 +279,27 @@ export function createWorkspaceAppAuth(input) {
       } catch (error) { return safeFailure(error); }
     },
 
+    /** Opt-in server-only one-use proof candidate. Never refresh, retry or mutate cookies. */
+    async withCandidateAccessTokenOnce(request, useToken) {
+      try {
+        assertRequest(request, config);
+        if (typeof useToken !== 'function') fail('handler_required');
+        if (!['GET', 'HEAD'].includes(request.method)) assertMutationOrigin(request, config);
+        const current = session(request);
+        if (!current) return denied(false);
+        return await bounded(config, async signal => {
+          const result = await guardedResponse(signal, () => useToken(current.a, signal), 'response_required');
+          const safe = noStore(result);
+          // A rejected/untrusted proof may never modify the previous app session.
+          safe.headers.delete('set-cookie');
+          return safe;
+        }, request.signal, config.operationTimeout);
+      } catch (error) {
+        if (error instanceof WorkspaceAppAuthError && ['invalid_cookie', 'origin_invalid'].includes(error.code)) return denied(false);
+        return response(503, 'connection_unavailable');
+      }
+    },
+
     /** Provider must revoke the entire app grant/family, including in-flight successors. */
     async logout(request) {
       try {

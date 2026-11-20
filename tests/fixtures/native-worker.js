@@ -39,7 +39,16 @@ async function qualify(origin, provider) {
   const firstSession = cookie(callback, SESSION_COOKIE);
   const identity = await auth.withAccessToken(request(origin, '/', firstSession), (token, signal) => read(provider, token, signal));
   checks.nativeRead = identity.status === 200 && (await identity.json()).workspace === 'synthetic-workspace';
+  const candidateRead = await auth.withCandidateAccessTokenOnce(request(origin, '/', firstSession), (token, signal) => read(provider, token, signal));
+  checks.nativeCandidateRead = candidateRead.status === 200 && !candidateRead.headers.has('set-cookie');
+  await candidateRead.body?.cancel();
+  const beforeOnce = await (await fetch(provider + '/fixture/counters', {redirect:'manual'})).json();
+  const lostOnce = await auth.withCandidateAccessTokenOnce(request(origin, '/', firstSession), (token, signal) => fetch(provider + '/fixture/candidate-lost', {method:'POST',redirect:'manual',signal,headers:{authorization:'Bearer '+token}}));
+  checks.nativeCandidateLostReply = lostOnce.status === 503 && !lostOnce.headers.has('set-cookie');
   await expire(provider);
+  const candidateDenied = await auth.withCandidateAccessTokenOnce(request(origin, '/', firstSession), (token, signal) => read(provider, token, signal));
+  const afterOnce = await (await fetch(provider + '/fixture/counters', {redirect:'manual'})).json();
+  checks.nativeCandidateNeverRetries = candidateDenied.status === 401 && !candidateDenied.headers.has('set-cookie') && afterOnce.refreshes === beforeOnce.refreshes && afterOnce.lostRequests === beforeOnce.lostRequests + 1;
   const refreshed = await auth.withAccessToken(request(origin, '/', firstSession), (token, signal) => read(provider, token, signal));
   checks.nativeRefresh = refreshed.status === 200 && !!cookie(refreshed, SESSION_COOKIE);
   await refreshed.body?.cancel();

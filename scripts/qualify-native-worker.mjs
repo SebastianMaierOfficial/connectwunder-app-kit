@@ -51,7 +51,7 @@ export async function qualifyNativeWorker({ binary, scratch, evidence, holdProvi
   const root = fileURLToPath(new URL('../', import.meta.url));
   let port, appOrigin;
   const counts = { providerRequests: 0, successfulCallbacks: 0, successfulRefreshes: 0, successfulRevokes: 0,
-    identityReads: 0, redirectsReturned: 0, trapRequests: 0, trapCredentialSeen: false, invalidForms: 0, unsupportedErrorRequests: 0 };
+    identityReads: 0, candidateLostRequests: 0, redirectsReturned: 0, trapRequests: 0, trapCredentialSeen: false, invalidForms: 0, unsupportedErrorRequests: 0 };
   const access = new Map(), refresh = new Map(), revoked = new Set();
   let sequence = 0, providerOrigin, trapOrigin, child, logs = '', result, failure, canceledBy;
   const cancellation = new AbortController();
@@ -85,6 +85,8 @@ export async function qualifyNativeWorker({ binary, scratch, evidence, holdProvi
         }
         send(res, 200, { nativeNetwork: true }); return;
       }
+      if (pathname === '/fixture/counters') { send(res,200,{refreshes:counts.successfulRefreshes,lostRequests:counts.candidateLostRequests});return; }
+      if (pathname === '/fixture/candidate-lost') { if(req.method!=='POST')throw Error('invalid_synthetic_form');counts.candidateLostRequests++;res.destroy();return; }
       if (pathname === '/fixture/expire') { for (const value of access.values()) value.expired = true; send(res, 204); return; }
       if (pathname === '/fixture/unsupported-error') { counts.unsupportedErrorRequests++; send(res, 200, { ok: true }); return; }
       let text = '';
@@ -166,7 +168,7 @@ export async function qualifyNativeWorker({ binary, scratch, evidence, holdProvi
     const response = await fetch('http://127.0.0.1:' + port + '/qualify', { signal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(45000)]) });
     result = await response.json();
     const networkChecks = { realTokenCallbackHttp: counts.successfulCallbacks >= 1, realRefreshHttp: counts.successfulRefreshes >= 1,
-      realRevokeHttp: counts.successfulRevokes >= 1, realIdentityHttp: counts.identityReads >= 1,
+      realRevokeHttp: counts.successfulRevokes >= 1, realIdentityHttp: counts.identityReads >= 1, oneCandidateLostRequest:counts.candidateLostRequests===1,
       realRedirectResponses: counts.redirectsReturned === 36, receivingTrapNeverRequested: counts.trapRequests === 0,
       noCredentialForwardedToTrap: counts.trapCredentialSeen === false, exactRequestForms: counts.invalidForms === 0 };
     result = { ...result, nativeHttpCounters: counts, nativeNetworkChecks: networkChecks, sourceSha256: hashes,

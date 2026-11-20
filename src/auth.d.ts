@@ -28,6 +28,8 @@ export interface WorkspaceAppAuth {
   callback(request: Request): Promise<Response>;
   /** This function and its token argument must remain server-only. */
   withAccessToken(request: Request, useToken: (token: string, signal: AbortSignal) => Response | Promise<Response>): Promise<Response>;
+  /** Server-only opt-in one-use candidate: no refresh, retry or cookie mutation on any result. */
+  withCandidateAccessTokenOnce(request: Request, useToken: (token: string, signal: AbortSignal) => Response | Promise<Response>): Promise<Response>;
   logout(request: Request): Promise<Response>;
 }
 export declare const SESSION_COOKIE: '__Host-cw_app_session';

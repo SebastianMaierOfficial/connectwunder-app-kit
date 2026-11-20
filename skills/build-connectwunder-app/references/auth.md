@@ -149,3 +149,18 @@ match the configured set exactly. Broader MCP/Connected App profiles, an unknown
 write name, a missing requested scope or an extra returned scope are rejected.
 This client allowlist does not grant server permission; live user, app, board and
 action checks remain mandatory on each provider mutation.
+
+## Explicit one-use candidates
+
+`withCandidateAccessTokenOnce(request, useToken)` is a server-only opt-in for a
+provider-advertised, one-use session-handoff contract. It supplies an existing app
+access token once under the same origin, abort and operation-deadline guards. It
+never refreshes, retries or sends Set-Cookie, including on missing/malformed
+cookies, denial or timeout. It does not establish the current Core actor: the
+provider must atomically validate and consume the actor-bound proof first.
+
+Keep ordinary requests on `withAccessToken`. After a proof is consumed, a lost
+response or later data failure needs a fresh Core entry; never replay the proof
+or refresh an old app actor before authenticating it. Offer a readable manual
+return/retry action through a fixed trusted Core URL. A provider that does not
+advertise the matching handoff contract continues to use full PKCE.
