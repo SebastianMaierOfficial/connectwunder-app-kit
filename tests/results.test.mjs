@@ -34,3 +34,11 @@ test('recovery unavailability keeps the response retryable and the submitted ide
  const request=new Request('https://app.example.invalid/submit');const first=await reporter.submit(request,[outcome]);assert.equal(first.status,503);assert.deepEqual(await first.json(),{error:'reporting_unavailable'});
  assert.equal((await reporter.submit(request,[outcome])).status,200);assert.equal(calls[0],calls[1]);
 });
+
+test('usage classification is optional and restricted to the documented scalar values',async()=>{
+ const auth={withAccessToken:async(_request,fn)=>fn('synthetic-token',new AbortController().signal)};let sent;
+ const reporter=createResultsReporter({auth,resource:'https://api.example.invalid/api/workspace-apps/v1',sourceId:'source_1',fetch:async(_url,options)=>{sent=JSON.parse(options.body);return Response.json({version:1,entries:[{status:'accepted'}]});}});
+ const usage={kind:'usage',eventId:'event',occurredAt:'2026-11-26T12:00:00Z',provider:'codex',requestId:'request',agentKind:'subagent'};
+ assert.equal((await reporter.submit(new Request('https://app.example.invalid'),[usage])).status,200);assert.equal(sent.entries[0].agentKind,'subagent');
+ await assert.rejects(reporter.submit(new Request('https://app.example.invalid'),[{...usage,agentKind:['root']}]));
+});

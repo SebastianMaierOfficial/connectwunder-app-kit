@@ -7,8 +7,8 @@ function validEntry(entry) {
     || typeof entry.occurredAt!=='string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,9})?Z$/u.test(entry.occurredAt)) return false;
   let fields;
   if (entry.kind==='usage') {
-    fields=['kind','eventId','occurredAt','provider','requestId',...metricKeys];
-    if(!validId(entry.provider) || !validId(entry.requestId) || metricKeys.some(k=>entry[k]!==undefined && (!Number.isSafeInteger(entry[k]) || entry[k]<0))) return false;
+    fields=['kind','eventId','occurredAt','provider','requestId','agentKind',...metricKeys];
+    if(!validId(entry.provider) || !validId(entry.requestId) || (entry.agentKind!==undefined && (typeof entry.agentKind!=='string'||!['root','subagent','unknown'].includes(entry.agentKind))) || metricKeys.some(k=>entry[k]!==undefined && (!Number.isSafeInteger(entry[k]) || entry[k]<0))) return false;
   } else if(entry.kind==='outcome') {
     fields=['kind','eventId','occurredAt','outcomeType','outcomeId'];
     if(!validId(entry.outcomeType) || !validId(entry.outcomeId))return false;

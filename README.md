@@ -162,7 +162,8 @@ optional capability and an owner can separately approve a source grant. Use the
 server-only `@connectwunder/app-kit/results` helper with the authenticated app
 session, confirmed resource URL and granted source ID. Send only allowlisted
 usage counters, durable completed outcomes or verified canonical references after
-a successful commit. Retry unchanged IDs after a timeout; a pending canonical
+a successful commit. Usage may include the source-reported `agentKind` value
+`root`, `subagent`, or `unknown`; omit it when the category is not known. Retry unchanged IDs after a timeout; a pending canonical
 reference may return HTTP 409 until its ledger projection is ready. Reporting
 creates no ConnectWunder credit deduction. Never send prompts, responses, code,
 paths, credentials or tool bodies. See the [setup guide](skills/build-connectwunder-app/references/setup.md#optional-results-reporting).
