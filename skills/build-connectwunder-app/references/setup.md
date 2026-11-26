@@ -119,3 +119,33 @@ Use stable intent/mutation keys for retries. External app writes retain the
 provider's existing API credit policy, including 4 credits for successful creation;
 an exact replay must not create or charge a second operation. Other write pricing
 and detailed request/precondition formats come from the target contract.
+
+## Optional results reporting
+
+When the app produces durable work, proactively identify its verifiable successful
+completion points and suggest context-specific, measurable outcome types to the
+owner. If reporting is desired, confirm that target discovery advertises
+`apps.results.import` and obtain explicit approval for the proposed types. Set
+`resultsReporting: true` only on that approved managed app. The current user must
+consent to the expanded OAuth scope. An owner must separately approve a reporting
+source for the app, user, outcome types and, when needed, the provider-account
+binding. In the current pilot the owner can approve their own app source in
+Settings → Data sources; other subjects require the authorized server-backed setup
+flow. The workspace and environment must also be eligible for the pilot. Do not
+assume a source ID, account, permission, result or cost from the app name.
+
+Use the server-only `@connectwunder/app-kit/results` helper after the application
+has durably committed an approved outcome. Submit the original outcome/event ID
+on every retry. Treat a timeout as unknown and retry the same payload; handle each
+accepted, replayed, invalid or conflict response separately. A provisional MCP
+reference can return HTTP 409 while the canonical ledger catches up; retry the
+same reference with bounded backoff. An MCP action can supply evidence, while
+submission itself uses the advertised HTTP endpoint. Imports do not deduct credits.
+Keep prompts, replies, code, local paths, credentials and tool payloads local.
+Do not add unverified or overlapping provider observations to a deduplicated total.
+
+For a recoverable MCP board write, use `create_board_items` with stable operation
+and entry idempotency keys. Its provisional reference can be recovered by replay
+within the target's receipt validity window. The single-item MCP tool does not
+provide an idempotent retry guarantee. Neither MCP receipt nor a caller-supplied
+correlation hint bypasses current access checks.

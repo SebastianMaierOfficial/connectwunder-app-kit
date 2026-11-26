@@ -1,6 +1,6 @@
 {
   "name": "@connectwunder/app-kit",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Framework-independent building blocks and an Agent Skill for private ConnectWunder workspace apps",
   "type": "module",
   "private": true,
@@ -18,7 +18,11 @@
       "import": "./src/navigation.js"
     },
     "./navigation.css": "./src/navigation.css",
-    "./setup": "./src/setup.js"
+    "./setup": "./src/setup.js",
+    "./results": {
+      "types": "./src/results.d.ts",
+      "import": "./src/results.js"
+    }
   },
   "files": [
     "src",

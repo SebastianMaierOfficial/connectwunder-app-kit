@@ -1,4 +1,4 @@
-export type WorkspaceAppScope = 'apps.identity.read' | 'apps.navigation.read' | 'apps.boards.read' | 'apps.boards.items.create' | 'apps.boards.items.fields.write' | 'apps.boards.notes.create';
+export type WorkspaceAppScope = 'apps.identity.read' | 'apps.navigation.read' | 'apps.boards.read' | 'apps.boards.items.create' | 'apps.boards.items.fields.write' | 'apps.boards.notes.create' | 'apps.results.import';
 export interface WorkspaceAppAuthConfig {
   appOrigin: string;
   issuer: string;

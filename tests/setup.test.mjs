@@ -55,3 +55,12 @@ test('write planning rejects authority expansion and accepts explicit no-field c
  assert.throws(() => validateApplicationManifest({...manifest,mode:'external',boardIds:[],boardWriteGrants:[grant]}));
  assert.throws(() => validateApplicationManifest({...manifest,boardWriteGrants:[{boardId:'synthetic-board',actions:['notes.create'],createFieldKeys:[]}]}));
 });
+test('reporting scope requires explicit manifest opt-in and matching confirmed registration',()=>{
+ const requested={...manifest,resultsReporting:true};
+ const confirmed={...registration,oauth:{...registration.oauth,scopes:[...registration.oauth.scopes,'apps.results.import']}};
+ assert.equal(validateApplicationManifest(requested).resultsReporting,true);
+ assert.ok(configurationFromRegistration(confirmed,requested,metadata).scopes.includes('apps.results.import'));
+ assert.throws(()=>configurationFromRegistration(confirmed,manifest,metadata));
+ assert.throws(()=>configurationFromRegistration(registration,requested,metadata));
+ assert.throws(()=>validateApplicationManifest({...manifest,mode:'external',boardIds:[],resultsReporting:true}));
+});

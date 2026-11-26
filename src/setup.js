@@ -1,5 +1,5 @@
 /** Pure setup validation and registration-result mapping. Performs no network or mutation. */
-const manifestKeys = new Set(['name', 'description', 'mode', 'origin', 'entryPath', 'callbackUrl', 'boardIds', 'boardWriteGrants', 'visibility', 'allowedUserIds']);
+const manifestKeys = new Set(['name', 'description', 'mode', 'origin', 'entryPath', 'callbackUrl', 'boardIds', 'boardWriteGrants', 'resultsReporting', 'visibility', 'allowedUserIds']);
 const text = (value, max, required = true) => {
   if (typeof value !== 'string' || value.length > max || /[\u0000-\u001f]/u.test(value) || (required && !value.trim())) throw new TypeError('Manifest text is invalid');
   return value.trim();
@@ -61,6 +61,8 @@ export function validateApplicationManifest(value) {
   const boardIds = ids(value.boardIds ?? [], 100);
   const boardWriteGrants = prepareWriteAccess(value.boardWriteGrants, boardIds);
   const allowedUserIds = ids(value.allowedUserIds ?? [], 200);
+  if (value.resultsReporting !== undefined && typeof value.resultsReporting !== 'boolean') throw new TypeError('Reporting capability is invalid');
+  if (value.resultsReporting && value.mode !== 'managed') throw new TypeError('External links cannot request reporting');
   const visibility = value.visibility ?? 'workspace';
   if (!['workspace', 'selected'].includes(visibility) || (visibility === 'workspace' && allowedUserIds.length) || (visibility === 'selected' && !allowedUserIds.length)) throw new TypeError('Application audience is invalid');
   let callbackUrl = null;
@@ -69,7 +71,7 @@ export function validateApplicationManifest(value) {
     if (callback.origin !== origin || callback.username || callback.password || callback.pathname === '/' || callback.search || callback.hash || callback.pathname === entryPath) throw new TypeError('Application callback is invalid');
     callbackUrl = callback.href;
   } else if (boardIds.length || boardWriteGrants.length || value.callbackUrl) throw new TypeError('External links cannot request managed board access or callbacks');
-  return { name: text(value.name, 100), description: text(value.description ?? '', 500, false), mode: value.mode, origin, entryPath, callbackUrl, boardIds, ...(boardWriteGrants.length ? { boardWriteGrants } : {}), visibility, allowedUserIds };
+  return { name: text(value.name, 100), description: text(value.description ?? '', 500, false), mode: value.mode, origin, entryPath, callbackUrl, boardIds, ...(boardWriteGrants.length ? { boardWriteGrants } : {}), ...(value.resultsReporting ? { resultsReporting: true } : {}), visibility, allowedUserIds };
 }
 
 /** Use only an authoritative successful registration response, never caller identity hints. */
@@ -82,7 +84,7 @@ export function configurationFromRegistration(registration, manifestValue, metad
   if (resource.protocol !== 'https:' || resource.username || resource.password || resource.pathname !== '/api/workspace-apps/v1' || resource.search || resource.hash) throw new TypeError('Registration resource is invalid');
   if (oauth.redirectUri !== manifest.callbackUrl || typeof oauth.clientId !== 'string' || !/^[A-Za-z0-9_-]{8,160}$/u.test(oauth.clientId)) throw new TypeError('Registration binding is invalid');
   const requestedWrites = new Set((manifest.boardWriteGrants ?? []).flatMap(grant => grant.actions.map(action => actionScopes[action])));
-  const expected = ['apps.identity.read', 'apps.navigation.read', ...(manifest.boardIds.length ? ['apps.boards.read'] : []), ...requestedWrites].sort();
+  const expected = ['apps.identity.read', 'apps.navigation.read', ...(manifest.boardIds.length ? ['apps.boards.read'] : []), ...requestedWrites, ...(manifest.resultsReporting ? ['apps.results.import'] : [])].sort();
   if (!Array.isArray(oauth.scopes) || [...oauth.scopes].sort().join(' ') !== expected.join(' ')) throw new TypeError('Registration scopes differ from the requested access');
   if (metadata?.issuer !== issuer) throw new TypeError('OAuth discovery metadata must match the registered issuer');
   const endpoint = key => {

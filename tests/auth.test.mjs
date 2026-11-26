@@ -458,3 +458,6 @@ test('candidate parent abort/deadline cancels late successful body with no retry
   }finally{t.mock.timers.reset();}
  }
 });
+test('reporting scope is allowed only when explicitly configured',()=>{
+ assert.doesNotThrow(()=>createWorkspaceAppAuth({...fixed,scopes:[...scopes,'apps.results.import']}));
+});

@@ -24,7 +24,8 @@ hosting when suitable. This kit does not require a particular agent or model API
    action grants and scopes from [setup](references/setup.md#optional-board-write-access).
    Preserve current user rights, version conflicts, stable retry keys and the
    provider's existing credit policy. Read access never implies write access.
-5. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
+5. When the app produces durable work, proactively suggest relevant, measurable outcomes tied to verifiable successful completion points. Obtain explicit approval before enabling the optional reporting capability or source grant described in [setup](references/setup.md#optional-results-reporting). Emit only after commit with stable IDs.
+6. Implement [authentication](references/auth.md), the minimum [data flow](references/data.md)
    and the default [full workspace sidebar](references/navigation.md). New apps
    show the current authorized modules, Dashboard areas/apps and eligible settings
    using the framework-free component or an equivalent full renderer. Preserve the
@@ -35,11 +36,11 @@ hosting when suitable. This kit does not require a particular agent or model API
    do not substitute a fetch mock for a native host-network test.
    The registered launch route always starts
    PKCE to bind the app to the current ConnectWunder user, even with an old app session.
-6. Follow [security](references/security.md) and the checks below. Do not label a
+7. Follow [security](references/security.md) and the checks below. Do not label a
    simulated check as a real provider or hosting result. Resolve failures, then
    test the same user workflow again. Stop only for a named missing access,
    business decision or external dependency that you cannot safely resolve.
-7. Report the usable URL, included behavior, actual checks, any remaining gap and
+8. Report the usable URL, included behavior, actual checks, any remaining gap and
    who owns its next action. Publish or change an audience only within the user's
    authorization. Never silently make a private Sites application public.
 

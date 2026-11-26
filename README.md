@@ -154,3 +154,35 @@ installation or live ConnectWunder acceptance; test the deployed application too
 ---
 
 [Imprint](https://app.connectwunder.com/legal/en/imprint) · [Privacy](https://app.connectwunder.com/legal/en/privacy)
+
+### Optional results reporting
+
+When a target advertises `apps.results.import`, a managed app can request the
+optional capability and an owner can separately approve a source grant. Use the
+server-only `@connectwunder/app-kit/results` helper with the authenticated app
+session, confirmed resource URL and granted source ID. Send only allowlisted
+usage counters, durable completed outcomes or verified canonical references after
+a successful commit. Retry unchanged IDs after a timeout; a pending canonical
+reference may return HTTP 409 until its ledger projection is ready. Reporting
+creates no ConnectWunder credit deduction. Never send prompts, responses, code,
+paths, credentials or tool bodies. See the [setup guide](skills/build-connectwunder-app/references/setup.md#optional-results-reporting).
+
+```js
+import { createResultsReporter } from '@connectwunder/app-kit/results';
+
+// Construct on the server from confirmed registration and source-grant values.
+const reporter = createResultsReporter({ auth, resource, sourceId });
+// Run only after the application's durable commit, from its authenticated route.
+const response = await reporter.submit(request, [{
+  kind: 'outcome', eventId: durableEventId, occurredAt: completedAt,
+  outcomeType: 'release', outcomeId: durableOutcomeId,
+}]);
+```
+
+A successful HTTP response still contains a status for every entry; inspect it.
+Keep the payload and its IDs in the application's own durable outbox until accepted
+or replayed. Resolve conflicts instead of changing an existing event. A 401 requires
+reauthorization, a 403 requires the owner to inspect the scope and grant, and a 409
+may indicate a canonical reference is still pending. Do not automatically retry
+invalid entries, or use a reference as proof of access. The target's OpenAPI document
+is authoritative for limits and supported fields.
