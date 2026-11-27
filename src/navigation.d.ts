@@ -1,3 +1,4 @@
+export declare const navigationContractVersion: string;
 export type NavigationSection = 'dashboards' | 'primary' | 'settings' | 'developers';
 export type NavigationIcon = 'dashboard'|'inbox'|'todos'|'people'|'companies'|'events'|'boards'|'documents'|'app'|'team'|'settings'|'news'|'help'|'code'|'book'|'area'|'account'|'notifications'|'workspace'|'billing'|'integrations'|'api-key'|'automation'|'history';
 export declare const navigationIcons: readonly NavigationIcon[];

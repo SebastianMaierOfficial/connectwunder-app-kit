@@ -1,6 +1,6 @@
 {
   "name": "@connectwunder/app-kit",
-  "version": "0.2.3",
+  "version": "0.2.4-core.1",
   "description": "Framework-independent building blocks and an Agent Skill for private ConnectWunder workspace apps",
   "type": "module",
   "private": true,
@@ -37,6 +37,7 @@
     "check": "node scripts/check.mjs",
     "package:hosts": "node scripts/package-hosts.mjs",
     "setup:check": "node scripts/setup.mjs check",
-    "qualify:worker": "node scripts/qualify-worker.mjs"
+    "qualify:worker": "node scripts/qualify-worker.mjs",
+    "navigation:sync": "node scripts/sync-navigation.mjs"
   }
 }

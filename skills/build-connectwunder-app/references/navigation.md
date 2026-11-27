@@ -64,8 +64,7 @@ People and every other module retain the current workspace's permissions.
 Preserve the provider's item order. Each disclosure appears at its first item;
 primary links remain in order around it. Dashboard, Settings and Developer groups
 use native keyboard-operable disclosures. The active group opens initially;
-otherwise Settings and Developers start collapsed. User toggles survive model
-redraws in that element only, without browser storage. Primary links have no
+otherwise Settings and Developers start collapsed. Group toggles survive model redraws in that element. The desktop width is a separate, origin-local UI preference. Primary links have no
 extra heading. The authorized settings root keeps its exact URL and appears as
 Overview inside Settings, avoiding a duplicate label.
 
@@ -175,6 +174,39 @@ staged menu. Model changes, media redraws and disconnects cancel the old listene
 timer and fragment; a subsequent current render can recover when its stylesheet
 is valid. Host access/actor changes must still replace private models as described
 above. Font registration remains nonblocking and independent of this CSS gate.
+
+## Compact desktop rail and versioned updates
+
+Use the labeled collapse control in the desktop header. The compact rail is
+66px at the default root font size. It shows icon labels on hover and keyboard
+focus. Dashboard, Settings, Developers and legal links each open a small
+keyboard-operable popover. Escape and clicking elsewhere dismiss it. The
+authorized destinations come from the same model in both desktop modes.
+Mobile continues to use the existing drawer. Older browsers without native
+popover support retain the expanded navigation.
+
+The rail exposes its layout via \`data-cw-navigation-mode\` once styled
+(\`expanded\`, \`compact\` or \`drawer\`). A fixed host frame should use the compact
+mode to release its reserved width. The element already updates its own width
+and flex basis. The \`sidebar_state\` cookie carries only the origin-local
+expanded/collapsed preference.
+
+The public source of icon geometry, UI tokens and presentation mode is
+\`src/navigation-contract.js\`. Its Lucide 0.475.0 notice is included in each
+self-contained JavaScript asset. From an exact Kit revision, verify the
+generated files with \`npm run check\`. Update a consumer's existing asset pair
+and verify the copy with:
+
+\`\`\`sh
+node scripts/sync-navigation.mjs --assets-dir /path/to/consumer/navigation-assets
+node scripts/sync-navigation.mjs --check --assets-dir /path/to/consumer/navigation-assets
+\`\`\`
+
+Record the Kit version, Git revision and printed SHA-256 values in the
+consumer's provenance. In Core use \`--contract-dir\` with
+\`src/components/shared-navigation\` to update or verify its React adapter input.
+Rebuild and release each bundled or vendored app through its own deployment
+path. Updating the Kit alone does not change previously built applications.
 
 ## Existing flat integrations
 
